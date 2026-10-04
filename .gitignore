@@ -1,0 +1,51 @@
+# ---- Keil MDK / ARMCC 编译中间产物与输出 ----
+*.o
+*.obj
+*.d
+*.crf
+*.dep
+*.lnp
+*.ln
+*.axf
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.iex
+*.htm
+*.build_log.htm
+*.scvd
+*.dbgconf
+build.log
+build_*.log
+*.build.log
+DebugConfig/
+
+# Keil 用户本地状态（窗口布局等）
+*.uvguix.*
+*.uvgui.*
+*.uvgui
+*.uvoptx
+*.bak
+*.bak_before_*
+
+# ---- CubeMX / IDE 本地元数据 ----
+.mxproject
+.settings/
+
+# ---- 压缩包与备份 ----
+*.zip
+*.rar
+*.7z
+
+# ---- 系统 / 编辑器 ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+*~
+*.swp
+
+# ---- 本地调试脚本（含本机绝对路径，不上传） ----
+_read_bt.py
+_pid_tuner*.py
