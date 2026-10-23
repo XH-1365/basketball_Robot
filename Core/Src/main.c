@@ -26,6 +26,8 @@
 #include "led_ind.h"
 #include "pid.h"
 #include "k210_follow.h"
+#include "tim.h"
+#include "dshot.h"
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
@@ -80,6 +82,17 @@
  * 调法: 还打滑减小; 起步肉/不跟手加大。0 = 关闭斜坡(恢复阶跃)。
  */
 #define WHEEL_SLEW_RPM_PER_TICK  150
+
+/*
+ * ==================== 7 路无刷 (LANRC DShot300, 同一块 C 板) ====================
+ * 与 LANRC 工程同一套操作: A 键(key2 bit0)按住 = 油门使能,
+ * 方向键上/下(key1)调速; 松开 A 立即停车, 速度档保留。
+ * key2 的 B 键(bit1=BT_KEY2_START)仍是 RC/FOLLOW 模式切换, 与 A 键不冲突。
+ */
+#define ESC_RUN_THROTTLE   1.0f   /* 满档油门上限 0.0~1.0 */
+#define ESC_SPEED_STEP     0.025f /* 每 ESC_SPEED_TICK_MS 调 2.5%, 0->100% 约 2s */
+#define ESC_SPEED_TICK_MS  50u
+#define ESC_SPEED_INIT     0.0f
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
@@ -116,6 +129,9 @@ typedef struct
 	uint32_t k210_age_ms;       /* 距最近一帧时间, 0xFFFFFFFF=从未收到 */
 	uint32_t k210_online;       /* 500ms 看门狗内 0/1 */
 	uint32_t k210_state;        /* 'L'/'S'/'X' ASCII */
+	int32_t  esc_speed_x100;    /* 无刷速度档 0~100 */
+	int32_t  esc_out_x100;      /* 实际输出油门 0~100 */
+	uint32_t esc_pkt;           /* 最近 DShot 16bit 帧 */
 } v2_dbg_t;
 
 /* USER CODE END PD */
@@ -182,6 +198,19 @@ int main(void)
   debug_port_init();            /* 调试串口: USART6(PG14/PG9) 接DAPLink虚拟串口 */
   led_ind_init();               /* 板载三色LED: 无串口也能看蓝牙状态 */
   debug_print("chassis bt-rc up\r\n");
+  MX_TIM8_Init();               /* 7 路无刷电调: TIM8_CH1~3 (PC6/PI6/PI7) */
+  MX_TIM1_Init();               /*               TIM1_CH1~4 (PE9/PE11/PE13/PE14) */
+  DShot_Init();                 /* DShot300 环形 DMA, 上电即持续发零油门帧 */
+  {
+    /* 等电调解锁(BLHeli_S 约 1~3s), 期间必须持续发帧并喂狗 */
+    uint32_t arm_until = HAL_GetTick() + DSHOT_ARM_MS;
+    while (HAL_GetTick() < arm_until)
+    {
+      HAL_IWDG_Refresh(&hiwdg);
+      HAL_Delay(10);
+    }
+  }
+  debug_print("esc dshot300 armed\r\n");
   k210_follow_init();           /* K210 视觉跟随: USART6(PG9/PG14) 115200 8N1 */
   /* USER CODE END 2 */
 
@@ -326,6 +355,43 @@ int main(void)
 
 		CAN_cmd_chassis(speed[0], speed[1], speed[2], speed[3]);
 
+		/* ---- 7 路无刷 (LANRC 同款操作): A 键使能 + 方向键调速 ---- */
+		{
+			static float esc_speed = ESC_SPEED_INIT;
+			static float esc_out = -1.0f;      /* 强制首拍写一次 */
+			static uint32_t esc_speed_tick = 0;
+			float out;
+			uint8_t a_hold = bt_rc_key_a();
+			int8_t key_updown = bt_rc_dir();
+
+			if (key_updown != 0)
+			{
+				uint32_t elapsed = HAL_GetTick() - esc_speed_tick;
+				if (elapsed >= ESC_SPEED_TICK_MS)
+				{
+					uint32_t steps = elapsed / ESC_SPEED_TICK_MS;
+					esc_speed_tick += steps * ESC_SPEED_TICK_MS;
+					esc_speed += (float)key_updown * ESC_SPEED_STEP * (float)steps;
+					if (esc_speed < 0.0f) { esc_speed = 0.0f; }
+					if (esc_speed > 1.0f) { esc_speed = 1.0f; }
+				}
+			}
+			else
+			{
+				esc_speed_tick = HAL_GetTick();
+			}
+
+			out = (a_hold != 0u) ? (esc_speed * ESC_RUN_THROTTLE) : 0.0f;
+			if (out != esc_out)
+			{
+				esc_out = out;
+				DShot_SetAllThrottle(out);
+			}
+
+			V2_dbg.esc_speed_x100 = (int32_t)(esc_speed * 100.0f + 0.5f);
+			V2_dbg.esc_out_x100 = (int32_t)(esc_out * 100.0f + 0.5f);
+			V2_dbg.esc_pkt = DShot_GetPacket();
+		}
 		k210_follow_report(mode);   /* 200ms 节流回传, 走 USART6(K210 可见) */
 
 		/* 刷新 SWD 监控块 */
