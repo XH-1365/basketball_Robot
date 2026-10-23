@@ -70,7 +70,16 @@
  * 对策: 摇杆归零且车未停稳时 -> 清积分 + KP/KD 乘以 CHASSIS_BRAKE_GAIN 强力拉回零速;
  *       四轮转速都低于 CHASSIS_BRAKE_EXIT_RPM 视为停稳, 恢复正常增益。
  */
-#define CHASSIS_BRAKE_GAIN      3.5f    /* 刹车时 KP/KD 放大倍数, 越大刹得越狠, 过大易顿挫/啸叫 (2.0->3.5: 20261023 实测松杆滑行, 加大制动力) */
+#define CHASSIS_BRAKE_GAIN      2.5f    /* 刹车时 KP/KD 放大倍数 (3.5->2.5: 已有斜坡限幅削掉阶跃, 不需要那么狠) */
+
+/*
+ * ==================== 轮速目标斜坡限幅 (防打滑) ====================
+ * 20261023 SWD 实测: 指令阶跃(0->2250rpm一拍)+大力矩 -> 轮子破抓地打滑,
+ * 稳态轮速 +-100~200rpm 摆动, 超调最高 10.6%。
+ * 对策: 每拍(10ms)目标最多变化 WHEEL_SLEW_RPM_PER_TICK, 0->2250 约 150ms。
+ * 调法: 还打滑减小; 起步肉/不跟手加大。0 = 关闭斜坡(恢复阶跃)。
+ */
+#define WHEEL_SLEW_RPM_PER_TICK  150
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
@@ -243,6 +252,25 @@ int main(void)
 		 * 符号/方向修正全部在 chassis_solve.h 的宏里, 上机反了就翻宏。
 		 */
 		chassis_inverse_kinematics(vx, vy, w, wheel);
+
+		/* 轮速目标斜坡限幅: 削掉指令阶跃, 防瞬间大电流破抓地打滑 */
+		{
+			static int32_t wheel_ramp[CHASSIS_MOTOR_NUM] = {0};
+			for (i = 0; i < CHASSIS_MOTOR_NUM; i++)
+			{
+				int32_t diff = wheel[i] - wheel_ramp[i];
+				if (diff > WHEEL_SLEW_RPM_PER_TICK)
+				{
+					diff = WHEEL_SLEW_RPM_PER_TICK;
+				}
+				if (diff < -WHEEL_SLEW_RPM_PER_TICK)
+				{
+					diff = -WHEEL_SLEW_RPM_PER_TICK;
+				}
+				wheel_ramp[i] += diff;
+				wheel[i] = wheel_ramp[i];
+			}
+		}
 
 		/*
 		 * 松杆刹车:
