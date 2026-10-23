@@ -47,15 +47,21 @@
  *   - 抖了/啸叫了: 减 KP, 或加 KD
  *   - 到不了目标转速(有静差): 加 KI
  */
+/*
+ * 20261023 实测调参: 原参数 KP=1.6/KI=0.01 表现为提速肉 + 四轮静差消不掉跑偏。
+ * KP 1.6->2.6: 满误差 P 输出从 20% 提到 32% 满电流, 提速明显;
+ * KI 0.01->0.08: 100rpm 静差约 1.3s 补完(原来要 10s), 各轮静差自然消除, 不再靠硬拉增益;
+ * KD 按原 KP:KD≈0.75 比例跟随。抖/啸叫先降 KP, 不到位加 KD。
+ */
 /* 基准参数 (一号 RB / 三号 LF / 四号 RF) —— 行驶手感 */
-#define PID_BASE_KP   1.6f
-#define PID_BASE_KI   0.01f
-#define PID_BASE_KD   1.2f
+#define PID_BASE_KP   2.6f
+#define PID_BASE_KI   0.08f
+#define PID_BASE_KD   1.6f
 
 /* 二号电机 LB (左后, 0x202) —— 保持 1.5 倍相对硬度 */
-#define PID_2_KP      2.4f
-#define PID_2_KI      0.01f
-#define PID_2_KD      1.8f
+#define PID_2_KP      3.9f
+#define PID_2_KI      0.08f
+#define PID_2_KD      2.4f
 
 /*
  * ==================== 松杆刹车 ====================
@@ -64,7 +70,7 @@
  * 对策: 摇杆归零且车未停稳时 -> 清积分 + KP/KD 乘以 CHASSIS_BRAKE_GAIN 强力拉回零速;
  *       四轮转速都低于 CHASSIS_BRAKE_EXIT_RPM 视为停稳, 恢复正常增益。
  */
-#define CHASSIS_BRAKE_GAIN      2.0f    /* 刹车时 KP/KD 放大倍数, 越大刹得越狠, 过大易顿挫/啸叫 */
+#define CHASSIS_BRAKE_GAIN      3.5f    /* 刹车时 KP/KD 放大倍数, 越大刹得越狠, 过大易顿挫/啸叫 (2.0->3.5: 20261023 实测松杆滑行, 加大制动力) */
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
