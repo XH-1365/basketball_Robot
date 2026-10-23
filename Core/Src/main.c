@@ -181,12 +181,14 @@ int main(void)
 		const bt_rc_t *bt;
 		static uint8_t mode = MODE_RC;    /* 0=蓝牙遥控 1=K210跟随 */
 		static bool last_key2 = false;
+		const k210_follow_t *kf;
 
 		HAL_Delay(10);
 		HAL_IWDG_Refresh(&hiwdg);   /* 喂狗不依赖遥控数据, 防止断连复位 */
 
 		bt = bt_rc_update();        /* 内部处理超时离线(摇杆自动归零) */
-		led_ind_task();             /* 板载LED指示蓝牙链路状态 */
+		kf = k210_follow_get();
+		led_ind_task(mode, kf->online, (kf->online && kf->state == 'L') ? 1u : 0u);  /* LED: 模式+目标状态 */
 		k210_follow_task();         /* K210 看门狗/超时处理 */
 
 		/* key2 按下边沿 -> 切换 RC/FOLLOW, 清四轮积分 */
@@ -294,7 +296,6 @@ int main(void)
 
 		/* 刷新 SWD 监控块 */
 		{
-			const k210_follow_t *kf = k210_follow_get();
 			V2_dbg.tick = HAL_GetTick();
 			V2_dbg.mode = mode;
 			V2_dbg.bt_online = bt_rc_is_online() ? 1u : 0u;
