@@ -25,6 +25,7 @@
 #include "debug_port.h"
 #include "led_ind.h"
 #include "pid.h"
+#include "k210_follow.h"
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
@@ -65,6 +66,43 @@
  */
 #define CHASSIS_BRAKE_GAIN      2.0f    /* 刹车时 KP/KD 放大倍数, 越大刹得越狠, 过大易顿挫/啸叫 */
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
+/*
+ * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
+ * key2 按下边沿切换 RC <-> FOLLOW; 切换时清四轮 PID 积分防残留。
+ * FOLLOW 只做转向跟随: 平移清零, w = K210 水平误差 P 控制(参数见 k210_follow.h)。
+ */
+#define MODE_RC      0u
+#define MODE_FOLLOW  1u
+
+/*
+ * ==================== SWD 在线监控 ====================
+ * 双串口都被占用(USART1=蓝牙, USART6=K210)后, 调试信息改走 SWD:
+ * 主循环每拍刷新 V2_dbg, PC 端用 _swd_mon_v2.py(pyocd) 不停机轮询读取。
+ * magic 用来确认读到的地址/固件是配套版本。
+ */
+#define V2_DBG_MAGIC 0x56324442u  /* 'V2DB' */
+
+typedef struct
+{
+	uint32_t magic;
+	uint32_t tick;              /* HAL_GetTick(), 判断固件是否在跑 */
+	uint32_t mode;              /* 0=RC 1=FOLLOW */
+	uint32_t bt_online;         /* 蓝牙链路 0/1 */
+	int32_t  vx;
+	int32_t  vy;
+	int32_t  w;
+	int32_t  wheel[4];          /* 逆解目标转速 RB/LB/LF/RF */
+	int32_t  rpm[4];            /* CAN 反馈转速 RB/LB/LF/RF */
+	int32_t  k210_w;            /* 跟随转向指令(rpm) */
+	int32_t  k210_err_x10;      /* K210 水平误差, 单位0.1deg */
+	uint32_t k210_frames;       /* 校验通过帧数 */
+	uint32_t k210_bad;          /* 校验失败帧数 */
+	uint32_t k210_drop;         /* seq 丢帧数 */
+	uint32_t k210_age_ms;       /* 距最近一帧时间, 0xFFFFFFFF=从未收到 */
+	uint32_t k210_online;       /* 500ms 看门狗内 0/1 */
+	uint32_t k210_state;        /* 'L'/'S'/'X' ASCII */
+} v2_dbg_t;
+
 /* USER CODE END PD */
 
 /* Private variables ---------------------------------------------------------*/
@@ -89,6 +127,9 @@ static const float PID_BASE_GAIN[CHASSIS_MOTOR_NUM][2] =
 	{PID_BASE_KP, PID_BASE_KD},   /* [2] 三号 LF */
 	{PID_BASE_KP, PID_BASE_KD},   /* [3] 四号 RF */
 };
+/* SWD 监控共享块: 主循环每拍写, pyocd 只读 */
+volatile v2_dbg_t V2_dbg = { V2_DBG_MAGIC };
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -126,6 +167,7 @@ int main(void)
   debug_port_init();            /* 调试串口: USART6(PG14/PG9) 接DAPLink虚拟串口 */
   led_ind_init();               /* 板载三色LED: 无串口也能看蓝牙状态 */
   debug_print("chassis bt-rc up\r\n");
+  k210_follow_init();           /* K210 视觉跟随: USART6(PG9/PG14) 115200 8N1 */
   /* USER CODE END 2 */
 
   while (1)
@@ -137,12 +179,27 @@ int main(void)
 		int32_t w;
 		int32_t wheel[CHASSIS_MOTOR_NUM];
 		const bt_rc_t *bt;
+		static uint8_t mode = MODE_RC;    /* 0=蓝牙遥控 1=K210跟随 */
+		static bool last_key2 = false;
 
 		HAL_Delay(10);
 		HAL_IWDG_Refresh(&hiwdg);   /* 喂狗不依赖遥控数据, 防止断连复位 */
 
 		bt = bt_rc_update();        /* 内部处理超时离线(摇杆自动归零) */
 		led_ind_task();             /* 板载LED指示蓝牙链路状态 */
+		k210_follow_task();         /* K210 看门狗/超时处理 */
+
+		/* key2 按下边沿 -> 切换 RC/FOLLOW, 清四轮积分 */
+		if (bt->key2 == BT_KEY2_START && !last_key2)
+		{
+			mode = (mode == MODE_RC) ? MODE_FOLLOW : MODE_RC;
+			for (i = 0; i < CHASSIS_MOTOR_NUM; i++)
+			{
+				MY_PID[i].integral = 0;
+			}
+			debug_print("mode -> %s\r\n", (mode == MODE_RC) ? "RC" : "FOLLOW");
+		}
+		last_key2 = (bt->key2 == BT_KEY2_START);
 
 		/*
 		 * 摇杆映射 —— 与全向底盘工程(DR16版)保持一致:
@@ -152,7 +209,14 @@ int main(void)
 		 * 遥控器"上推"原始值为负, 所以 vx 取负抵消。
 		 * 满量程/方向宏见 bt_rc.h 的 BT_VX_MAX_RPM / BT_VX_DIR 等。
 		 */
-		if (bt_rc_is_online())
+		if (mode == MODE_FOLLOW)
+		{
+			/* 跟随模式: 只转向, 平移清零; K210 离线/丢人时 k210_follow_wheel_cmd() 返回 0 */
+			vx = 0;
+			vy = 0;
+			w  = k210_follow_wheel_cmd();
+		}
+		else if (bt_rc_is_online())
 		{
 			vx = -bt_joy_map(bt->ry, BT_VX_DIR, BT_VX_MAX_RPM);
 			vy =  bt_joy_map(bt->rx, BT_VY_DIR, BT_VY_MAX_RPM);
@@ -225,6 +289,33 @@ int main(void)
 		}
 
 		CAN_cmd_chassis(speed[0], speed[1], speed[2], speed[3]);
+
+		k210_follow_report(mode);   /* 200ms 节流回传, 走 USART6(K210 可见) */
+
+		/* 刷新 SWD 监控块 */
+		{
+			const k210_follow_t *kf = k210_follow_get();
+			V2_dbg.tick = HAL_GetTick();
+			V2_dbg.mode = mode;
+			V2_dbg.bt_online = bt_rc_is_online() ? 1u : 0u;
+			V2_dbg.vx = vx;
+			V2_dbg.vy = vy;
+			V2_dbg.w = w;
+			for (i = 0; i < CHASSIS_MOTOR_NUM; i++)
+			{
+				V2_dbg.wheel[i] = wheel[i];
+				V2_dbg.rpm[i] = C[i].speed_rpm;
+			}
+			V2_dbg.k210_w = k210_follow_wheel_cmd();
+			V2_dbg.k210_err_x10 = kf->err_deg_x10;
+			V2_dbg.k210_frames = kf->frame_cnt;
+			V2_dbg.k210_bad = kf->bad_cnt;
+			V2_dbg.k210_drop = kf->drop_cnt;
+			V2_dbg.k210_online = kf->online;
+			V2_dbg.k210_state = (uint32_t)(uint8_t)kf->state;
+			V2_dbg.k210_age_ms = (kf->last_tick == 0u) ? 0xFFFFFFFFu
+			                   : (HAL_GetTick() - kf->last_tick);
+		}
 
 #if BT_DEBUG_EN
 		{

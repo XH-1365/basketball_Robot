@@ -723,6 +723,16 @@
               <FileType>5</FileType>
               <FilePath>..\user\chassis_solve.h</FilePath>
             </File>
+            <File>
+              <FileName>k210_follow.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\k210_follow.c</FilePath>
+            </File>
+            <File>
+              <FileName>k210_follow.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\k210_follow.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
