@@ -38,6 +38,8 @@ static uint8_t s_line_len;
 static uint8_t s_line_overflow;
 static uint32_t s_report_tick;
 static int32_t  s_last_cmd;     /* 最近一次 wheel_cmd 输出, 回传用 */
+static int32_t  s_last_vx;      /* 最近一次 vx_cmd 输出, 软起步斜坡用 */
+static int16_t  s_target_dist_cm = K210_FOLLOW_DIST_CM;  /* 运行时锁定距离(cm) */
 
 /* ============================ 内部函数 ==================================== */
 
@@ -313,9 +315,110 @@ int32_t k210_follow_wheel_cmd(void)
     return s_last_cmd;
 }
 
+int32_t k210_follow_vx_cmd(void)
+{
+    float err_cm;
+    float err_deg_abs;
+    float slow;
+    float vx;
+    int32_t target;
+
+    /* 掉人/离线: 立刻停车(不走斜坡, 安全优先) */
+    if (s_k210.online == 0U || s_k210.state != 'L')
+    {
+        s_last_vx = 0;
+        return 0;
+    }
+
+    /* dist 未知(协议 -1 -> dist_x100 = -100): 距离不可信就不瞎走 */
+    if (s_k210.dist_x100 < 0)
+    {
+        s_last_vx = 0;
+        return 0;
+    }
+
+    /* 距离误差(cm): 正 = 太远(要前进), 负 = 太近(要后退)
+     * dist_x100 单位恰好是 cm(协议 dist_m=1.23 -> 123), 不用再换单位 */
+    err_cm = (float)s_k210.dist_x100 - (float)s_target_dist_cm;
+
+    /* 死区: 贴着目标距离不动, 防止临界点前后窜(±DEADBAND 内, 含边界) */
+    if (err_cm >= -(float)K210_DIST_DEADBAND_CM &&
+        err_cm <=  (float)K210_DIST_DEADBAND_CM)
+    {
+        err_cm = 0.0f;
+    }
+
+    /* P 控制: rpm(cm 量纲) */
+    vx = K210_FOLLOW_KV * err_cm;
+
+    /* 转向联动降速: 人偏在侧边时别一边猛转一边冲 */
+    err_deg_abs = (float)s_k210.err_deg_x10 / 10.0f;
+    if (err_deg_abs < 0.0f) { err_deg_abs = -err_deg_abs; }
+
+    if (err_deg_abs <= K210_TURN_SLOW_START)
+    {
+        slow = 1.0f;
+    }
+    else if (err_deg_abs >= K210_TURN_SLOW_FULL)
+    {
+        slow = K210_TURN_SLOW_MIN;
+    }
+    else
+    {
+        slow = 1.0f - (1.0f - K210_TURN_SLOW_MIN) *
+               (err_deg_abs - K210_TURN_SLOW_START) /
+               (K210_TURN_SLOW_FULL - K210_TURN_SLOW_START);
+    }
+    vx *= slow;
+
+    /* 限幅 */
+    if (vx >  (float)K210_VX_MAX) { vx =  (float)K210_VX_MAX; }
+    if (vx < -(float)K210_VX_MAX) { vx = -(float)K210_VX_MAX; }
+
+    vx *= K210_VX_DIR;
+    target = (int32_t)vx;
+
+    /* 软起步: 只在"同向加速(含从 0 起步)"时限每拍增量;
+     * 目标为 0(停车) / 反向 都不限, 该停就立刻停, 该退就立刻退。
+     * 注意 last=0 起步时也必须受限, 否则第一拍直接跳到满速。 */
+    if (target != 0 &&
+        ((target > 0 && s_last_vx >= 0) || (target < 0 && s_last_vx <= 0)))
+    {
+        if ((target - s_last_vx) > K210_VX_SLEW_UP)
+        {
+            target = s_last_vx + K210_VX_SLEW_UP;
+        }
+        else if ((s_last_vx - target) > K210_VX_SLEW_UP)
+        {
+            target = s_last_vx - K210_VX_SLEW_UP;
+        }
+    }
+
+    s_last_vx = target;
+    return s_last_vx;
+}
+
+void k210_follow_reset(void)
+{
+    s_last_vx  = 0;
+    s_last_cmd = 0;
+}
+
+void k210_follow_set_target_dist_cm(int16_t cm)
+{
+    if (cm < K210_DIST_CM_MIN) { cm = K210_DIST_CM_MIN; }
+    if (cm > K210_DIST_CM_MAX) { cm = K210_DIST_CM_MAX; }
+    s_target_dist_cm = cm;
+}
+
+int16_t k210_follow_get_target_dist_cm(void)
+{
+    return s_target_dist_cm;
+}
+
 void k210_follow_report(uint8_t follow_mode)
 {
-    char buf[64];
+    char buf[96];
     int len;
     int err_i = s_k210.err_deg_x10;
     int err_abs = (err_i < 0) ? -err_i : err_i;
@@ -326,12 +429,16 @@ void k210_follow_report(uint8_t follow_mode)
     }
     s_report_tick = HAL_GetTick();
 
-    /* RM,<mode>,<state>,<err_deg>,<w>  —— 格式不约定, K210 只做 [CHAS] 回显 */
-    len = snprintf(buf, sizeof(buf), "RM,%s,%c,E=%d.%d,W=%ld,F=%lu\n",
+    /* RM,<mode>,<state>,E=<err>,W=<w>,D=<dist_cm>,T=<目标cm>,V=<vx>,F=<frames>
+     * —— 格式不约定, K210 只做 [CHAS] 回显; D/T/V 是距离保持的现场值 */
+    len = snprintf(buf, sizeof(buf), "RM,%s,%c,E=%d.%d,W=%ld,D=%d,T=%d,V=%ld,F=%lu\n",
                    (follow_mode != 0U) ? "FLW" : "RC",
                    s_k210.state,
                    err_i / 10, err_abs % 10,
                    (long)s_last_cmd,
+                   (int)s_k210.dist_x100,
+                   (int)s_target_dist_cm,
+                   (long)s_last_vx,
                    (unsigned long)s_k210.frame_cnt);
     if (len > 0)
     {

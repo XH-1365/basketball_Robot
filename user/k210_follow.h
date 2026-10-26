@@ -17,8 +17,10 @@
   *   1) USART6 逐字节中断收帧 + XOR 校验 + 字段解析（独立寄存器级 ISR,
   *      不占用 HAL 的 RxCpltCallback——那个已经被蓝牙模块占了）
   *   2) 500ms 看门狗：超时判 K210 掉线
-  *   3) k210_follow_wheel_cmd()：按 err_deg 做 P 控制生成旋转指令 w
-  *   4) k210_follow_report()：每 200ms 发一行状态回 K210（格式不约定, 供链路确认）
+ *   3) k210_follow_wheel_cmd()：按 err_deg 做 P 控制生成旋转指令 w
+ *   4) k210_follow_vx_cmd()：按 dist 做距离保持, 生成前后平移指令 vx
+ *      （目标距离 = K210_FOLLOW_DIST_CM, 转向误差大时按比例降速）
+ *   5) k210_follow_report()：每 200ms 发一行状态回 K210（格式不约定, 供链路确认）
   ******************************************************************************
   */
 
@@ -55,6 +57,42 @@ extern "C" {
 
 /* 状态回传周期(ms): 每次向 K210 发一行 RM,... 状态 */
 #define K210_REPORT_MS          200u
+
+/* ======================= 距离保持（FOLLOW 前后平移） ======================= */
+
+/* ★ 锁定距离(cm)：人与底盘的期望间距。改这一个数就换锁定距离。
+ *   1 格 = 1cm。常用值：100~150。小于 40 时人贴身，底盘会一直后退。
+ *   运行中也能改：k210_follow_set_target_dist_cm(cm)，范围 20~500。 */
+#define K210_FOLLOW_DIST_CM     120
+
+/* 运行时目标距离的合法范围(cm), 超出会被钳住 */
+#define K210_DIST_CM_MIN        20
+#define K210_DIST_CM_MAX        500
+
+/* 距离死区(cm): 实际距离在 目标±此值 内不动, 防止贴着临界点前后窜 */
+#define K210_DIST_DEADBAND_CM   5
+
+/* 距离比例系数(rpm/cm): vx = KV * 距离误差。
+ * 误差 60cm -> 480rpm; 误差 150cm -> 打满 1200rpm。追得太猛就调小, 太肉就调大。 */
+#define K210_FOLLOW_KV          8.0f
+
+/* 前后平移限幅(rpm), 比遥控满幅(BT_VX_MAX_RPM=2000)低, 跟人走够用又不过冲 */
+#define K210_VX_MAX             1200
+
+/* 前后平移软起步(rpm/拍, 10ms/拍): 只限制"加速", 减速/停车不受限(安全优先)。
+ * 15rpm/拍 -> 从 0 到 1200 约 0.8s, 起步不窜。 */
+#define K210_VX_SLEW_UP         15
+
+/* 方向: vx 正 = 前进(chassis 里正 vx 即向前)。
+ * 上机若"远了反而后退", 把这里改成 (-1.0f)。 */
+#define K210_VX_DIR             (+1.0f)
+
+/* 转向-前进联动: |err_deg| 小于 K210_TURN_SLOW_START 不降速;
+ * 到 K210_TURN_SLOW_FULL 时降到 K210_TURN_SLOW_MIN 倍(保底不全停)。
+ * 目的: 人在侧边时别一边猛转一边冲。 */
+#define K210_TURN_SLOW_START    3.0f
+#define K210_TURN_SLOW_FULL     15.0f
+#define K210_TURN_SLOW_MIN      0.15f
 
 /* ============================ 数据结构 ==================================== */
 
@@ -96,6 +134,32 @@ void k210_follow_task(void);
   *         非 'L' / 掉线 / 死区内一律返回 0。
   */
 int32_t k210_follow_wheel_cmd(void);
+
+/**
+  * @brief  跟随模式下的前后平移指令(rpm), 距离保持环。每 10ms 调一次。
+  *         内部完成: 只认 state='L' 且在线; dist 未知(-1)不动; 死区;
+  *         P 控制; 转向联动降速; 限幅; 加速软起步(减速立即跟)。
+  * @retval 正 = 前进(距离太远), 负 = 后退(太近), 0 = 不动
+  * @note   与 k210_follow_wheel_cmd() 互不干扰, 两者一起喂给逆解。
+  */
+int32_t k210_follow_vx_cmd(void);
+
+/**
+  * @brief  清距离环内部状态(软起步斜坡 + 上次输出)。
+  *         切换 RC<->FOLLOW 时调用, 避免带着上一模式的斜坡值起步。
+  */
+void k210_follow_reset(void);
+
+/**
+  * @brief  运行中改锁定距离(cm)。会在 20~500 之间自动钳位。
+  *         例: k210_follow_set_target_dist_cm(150);  // 改成 1.5m
+  */
+void k210_follow_set_target_dist_cm(int16_t cm);
+
+/**
+  * @brief  读当前锁定距离(cm)
+  */
+int16_t k210_follow_get_target_dist_cm(void);
 
 /**
   * @brief  向 K210 回传一行状态: RM,<mode>,<state>,<err_deg>,<w>\n

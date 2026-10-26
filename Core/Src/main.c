@@ -99,7 +99,11 @@
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
  * key2 按下边沿切换 RC <-> FOLLOW; 切换时清四轮 PID 积分防残留。
- * FOLLOW 只做转向跟随: 平移清零, w = K210 水平误差 P 控制(参数见 k210_follow.h)。
+ * FOLLOW = 转向跟随 + 距离保持:
+ *   w  = K210 水平误差(err_deg) P 控制
+ *   vx = K210 距离(dist) P 控制, 锁定距离见 k210_follow.h 的 K210_FOLLOW_DIST_CM
+ *   vy = 0(横移不用)
+ * 参数全在 k210_follow.h, 上机反了翻 K210_FOLLOW_DIR / K210_VX_DIR。
  */
 #define MODE_RC      0u
 #define MODE_FOLLOW  1u
@@ -131,6 +135,8 @@ typedef struct
 	uint32_t k210_age_ms;       /* 距最近一帧时间, 0xFFFFFFFF=从未收到 */
 	uint32_t k210_online;       /* 500ms 看门狗内 0/1 */
 	uint32_t k210_state;        /* 'L'/'S'/'X' ASCII */
+	int32_t  k210_dist_x100;    /* K210 估距(cm), -100=未知 */
+	int32_t  k210_vx;           /* 距离保持前后平移指令(rpm) */
 	int32_t  esc_speed_x100;    /* 无刷速度档 0~100 */
 	int32_t  esc_out_x100;      /* 实际输出油门 0~100 */
 	uint32_t esc_pkt;           /* 最近 DShot 16bit 帧 */
@@ -247,6 +253,7 @@ int main(void)
 			{
 				MY_PID[i].integral = 0;
 			}
+			k210_follow_reset();   /* 清距离环软起步斜坡, 别带上一模式的状态 */
 			debug_print("mode -> %s\r\n", (mode == MODE_RC) ? "RC" : "FOLLOW");
 		}
 		last_key2 = (bt->key2 == BT_KEY2_START);
@@ -261,8 +268,9 @@ int main(void)
 		 */
 		if (mode == MODE_FOLLOW)
 		{
-			/* 跟随模式: 只转向, 平移清零; K210 离线/丢人时 k210_follow_wheel_cmd() 返回 0 */
-			vx = 0;
+			/* 跟随模式: 转向(err_deg) + 前后距离保持(dist), 横移不用。
+			 * K210 离线/丢人时两个指令都返回 0, 原地停住不瞎走。 */
+			vx = k210_follow_vx_cmd();
 			vy = 0;
 			w  = k210_follow_wheel_cmd();
 		}
@@ -441,6 +449,10 @@ int main(void)
 			V2_dbg.k210_drop = kf->drop_cnt;
 			V2_dbg.k210_online = kf->online;
 			V2_dbg.k210_state = (uint32_t)(uint8_t)kf->state;
+			V2_dbg.k210_dist_x100 = kf->dist_x100;
+			/* 注意: 不能在这里再调 k210_follow_vx_cmd(), 它带状态(斜坡),
+			 * 每拍调两次会让软起步速度翻倍。用主循环算好的 vx 即可。 */
+			V2_dbg.k210_vx = (mode == MODE_FOLLOW) ? vx : 0;
 			V2_dbg.k210_age_ms = (kf->last_tick == 0u) ? 0xFFFFFFFFu
 			                   : (HAL_GetTick() - kf->last_tick);
 		}
