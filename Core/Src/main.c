@@ -93,6 +93,8 @@
 #define ESC_SPEED_STEP     0.025f /* 每 ESC_SPEED_TICK_MS 调 2.5%, 0->100% 约 2s */
 #define ESC_SPEED_TICK_MS  50u
 #define ESC_SPEED_INIT     0.0f
+/* 油门斜坡: 每拍(10ms)变化 1%, 0->100% 约 1s, 升降同速(用户要求慢慢变) */
+#define ESC_RAMP_STEP      0.01f
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
@@ -132,6 +134,8 @@ typedef struct
 	int32_t  esc_speed_x100;    /* 无刷速度档 0~100 */
 	int32_t  esc_out_x100;      /* 实际输出油门 0~100 */
 	uint32_t esc_pkt;           /* 最近 DShot 16bit 帧 */
+	uint32_t esc_a_hold;        /* A 键判定结果 0/1 (排查自转) */
+	uint32_t esc_key2;          /* 按键2 原始字节 (排查自转) */
 } v2_dbg_t;
 
 /* USER CODE END PD */
@@ -358,7 +362,8 @@ int main(void)
 		/* ---- 7 路无刷 (LANRC 同款操作): A 键使能 + 方向键调速 ---- */
 		{
 			static float esc_speed = ESC_SPEED_INIT;
-			static float esc_out = -1.0f;      /* 强制首拍写一次 */
+			static float esc_out = -1.0f;      /* 实际输出(斜坡后的值) */
+			static float esc_write = -1.0f;    /* 上次下发给电调的值 */
 			static uint32_t esc_speed_tick = 0;
 			float out;
 			uint8_t a_hold = bt_rc_key_a();
@@ -382,15 +387,37 @@ int main(void)
 			}
 
 			out = (a_hold != 0u) ? (esc_speed * ESC_RUN_THROTTLE) : 0.0f;
-			if (out != esc_out)
+
+			/* 首拍从 0 起步, 避免 -1 占位值被当成有效输出 */
+			if (esc_out < 0.0f)
 			{
-				esc_out = out;
-				DShot_SetAllThrottle(out);
+				esc_out = 0.0f;
+			}
+
+			/* 油门斜坡: 升降各约 1s(每拍 1%), 不瞬间跳变 */
+			if (esc_out < out)
+			{
+				esc_out += ESC_RAMP_STEP;
+				if (esc_out > out) { esc_out = out; }
+			}
+			else if (esc_out > out)
+			{
+				esc_out -= ESC_RAMP_STEP;
+				if (esc_out < out) { esc_out = out; }
+			}
+
+			/* 值真的变了才下发(减少 DMA 重启次数) */
+			if (esc_out != esc_write)
+			{
+				esc_write = esc_out;
+				DShot_SetAllThrottle(esc_out);
 			}
 
 			V2_dbg.esc_speed_x100 = (int32_t)(esc_speed * 100.0f + 0.5f);
 			V2_dbg.esc_out_x100 = (int32_t)(esc_out * 100.0f + 0.5f);
 			V2_dbg.esc_pkt = DShot_GetPacket();
+			V2_dbg.esc_a_hold = a_hold;
+			V2_dbg.esc_key2 = bt->key2;
 		}
 		k210_follow_report(mode);   /* 200ms 节流回传, 走 USART6(K210 可见) */
 
