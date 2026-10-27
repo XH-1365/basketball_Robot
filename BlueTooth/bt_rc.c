@@ -251,3 +251,30 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         HAL_UART_Receive_IT(bt_huart, &rx_byte, 1);
     }
 }
+
+/* ---- V3 追加: LANRC 油门控制用的按键接口 ---- */
+uint8_t bt_rc_key_a(void)
+{
+    if (!bt_rc_is_online())
+    {
+        return 0u;
+    }
+    return (bt_rc.key2 & BT_KEY2_A) ? 1u : 0u;
+}
+
+int8_t bt_rc_dir(void)
+{
+    if (!bt_rc_is_online())
+    {
+        return 0;
+    }
+    if (bt_rc.key1 == BT_DPAD_UP)
+    {
+        return 1;
+    }
+    if (bt_rc.key1 == BT_DPAD_DOWN)
+    {
+        return -1;
+    }
+    return 0;
+}

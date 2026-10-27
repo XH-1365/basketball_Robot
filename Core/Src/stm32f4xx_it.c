@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "DR16_DT7.h"
+#include "k210_follow.h"
 
 /* USER CODE END Includes */
 
@@ -274,5 +275,23 @@ void CAN2_RX0_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+/*
+ * K210 视觉跟随接收: USART6(PG9) RXNE 中断。
+ * bt_rc.c 已占用 HAL_UART_RxCpltCallback, 这里直接寄存器级收字节。
+ */
+void USART6_IRQHandler(void)
+{
+	uint32_t sr = USART6->SR;
+
+	if (sr & (USART_SR_ORE | USART_SR_FE | USART_SR_NE | USART_SR_PE))
+	{
+		(void)USART6->DR;       /* 先SR后DR, 清错误标志 */
+	}
+	if (sr & USART_SR_RXNE)
+	{
+		k210_follow_on_rx((uint8_t)(USART6->DR & 0xFFU));
+	}
+}
 
 /* USER CODE END 1 */

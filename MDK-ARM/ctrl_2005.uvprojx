@@ -429,6 +429,11 @@
               <FilePath>../Core/Src/main.c</FilePath>
             </File>
             <File>
+              <FileName>tim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/tim.c</FilePath>
+            </File>
+            <File>
               <FileName>gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/gpio.c</FilePath>
@@ -629,6 +634,16 @@
               <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c</FilePath>
             </File>
             <File>
+              <FileName>stm32f4xx_hal_tim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_hal_tim_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c</FilePath>
+            </File>
+            <File>
               <FileName>stm32f4xx_hal_iwdg.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c</FilePath>
@@ -722,6 +737,26 @@
               <FileName>chassis_solve.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\user\chassis_solve.h</FilePath>
+            </File>
+            <File>
+              <FileName>k210_follow.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\k210_follow.c</FilePath>
+            </File>
+            <File>
+              <FileName>k210_follow.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\k210_follow.h</FilePath>
+            </File>
+            <File>
+              <FileName>dshot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\dshot.c</FilePath>
+            </File>
+            <File>
+              <FileName>dshot.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\dshot.h</FilePath>
             </File>
           </Files>
         </Group>

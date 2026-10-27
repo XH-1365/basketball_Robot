@@ -104,4 +104,15 @@ void bt_rc_init(void);              /* 使能接收中断, 在外设初始化之
 const bt_rc_t *bt_rc_update(void);  /* 主循环调用: 处理超时, 返回最新遥控数据 */
 uint8_t bt_rc_is_online(void);      /* 1=在线(超时时间内有有效帧) */
 
+/* ---- V3 追加: 与 LANRC 工程共用的按键接口 ----
+ * 按键2是位掩码: bit0=A bit1=B bit3=X bit4=Y bit6=LB bit7=RB
+ * 按键1是方向枚举(不是位掩码): 1=上 3=右 5=下 7=左
+ */
+#define BT_KEY2_A             0x01
+#define BT_DPAD_UP            1
+#define BT_DPAD_DOWN          5
+
+uint8_t bt_rc_key_a(void);   /* A 键按住=1; 离线恒 0 */
+int8_t  bt_rc_dir(void);     /* 方向键上=+1 下=-1 其他=0; 离线恒 0 */
+
 #endif /* BT_RC_H */

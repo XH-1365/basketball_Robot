@@ -1,7 +1,8 @@
 /**
   ******************************************************************************
   * @file    led_ind.c
-  * @brief   板载三色 LED 指示, 用于无串口判断蓝牙链路状态
+  * @brief   板载三色 LED 指示, 用颜色区分运行状态 (V2)
+  *          绿=RC手动  蓝=跟随锁定目标  红闪=跟随没目标/K210离线
   ******************************************************************************
   */
 #include "led_ind.h"
@@ -36,13 +37,13 @@ void led_ind_init(void)
     led_write(LED_B_PORT, LED_B_PIN, 0);
 }
 
-void led_ind_task(void)
+void led_ind_task(uint8_t mode, uint8_t k210_online, uint8_t has_target)
 {
-    static uint32_t last_tick = 0;
-    static uint32_t slow_cnt  = 0;      /* 1Hz 慢闪计数 */
-    static uint32_t fast_cnt  = 0;      /* 5Hz 快闪计数 */
-    static uint32_t last_ok   = 0;
-    static uint32_t last_err  = 0;
+    static uint32_t last_tick  = 0;
+    static uint32_t slow_cnt   = 0;      /* 1Hz 慢闪计数 */
+    static uint32_t fast_cnt   = 0;      /* 5Hz 快闪计数 */
+    static uint32_t last_err   = 0;
+    static uint32_t last_err_t = 0;
     const bt_rc_t  *bt;
     uint32_t now = HAL_GetTick();
 
@@ -60,45 +61,59 @@ void led_ind_task(void)
 
     bt = bt_rc_update();
 
-    /* ---- 绿灯: 蓝牙链路状态 ---- */
-    if (bt_rc_is_online())
+    if (mode == LED_MODE_FOLLOW)
     {
-        led_write(LED_G_PORT, LED_G_PIN, 1);            /* 在线: 常亮 */
-    }
-    else
-    {
-        led_write(LED_G_PORT, LED_G_PIN, (slow_cnt < 12u) ? 1 : 0);  /* 离线: 1Hz 慢闪 */
-    }
+        /* ---- 跟随模式: 蓝=锁定目标, 红1Hz=在线没人, 红5Hz=K210离线 ---- */
+        led_write(LED_G_PORT, LED_G_PIN, 0);
+        led_write(LED_B_PORT, LED_B_PIN, (has_target != 0u) ? 1 : 0);
 
-    /* ---- 蓝灯: 曾经收到过有效帧 (锁存) ---- */
-    if (bt->ok_cnt != 0u)
-    {
-        led_write(LED_B_PORT, LED_B_PIN, 1);            /* 有有效帧: 常亮 */
+        if (has_target != 0u)
+        {
+            led_write(LED_R_PORT, LED_R_PIN, 0);
+        }
+        else if (k210_online != 0u)
+        {
+            led_write(LED_R_PORT, LED_R_PIN, (slow_cnt < 12u) ? 1 : 0);  /* 1Hz 慢闪 */
+        }
+        else
+        {
+            led_write(LED_R_PORT, LED_R_PIN, (fast_cnt < 3u) ? 1 : 0);   /* 5Hz 快闪 */
+        }
     }
     else
     {
-        led_write(LED_B_PORT, LED_B_PIN, 0);            /* 从没收到: 灭 */
-    }
-
-    /* ---- 红灯: 错误帧活动 (err_cnt 增长时快闪, 停就灭) ---- */
-    if (bt->err_cnt != last_err)
-    {
-        last_err = bt->err_cnt;
-        last_ok  = now;                                 /* 复用: 记录错误活动时刻 */
-    }
-    if (bt->err_cnt != 0u && (now - last_ok) < 1000u)
-    {
-        led_write(LED_R_PORT, LED_R_PIN, (fast_cnt < 3u) ? 1 : 0);   /* 5Hz 快闪 */
-    }
-    else
-    {
+        /* ---- 手动模式: 绿=蓝牙链路, 蓝=收过有效帧, 红=坏帧活动 ---- */
         led_write(LED_R_PORT, LED_R_PIN, 0);
+
+        if (bt_rc_is_online())
+        {
+            led_write(LED_G_PORT, LED_G_PIN, 1);            /* 在线: 常亮 */
+        }
+        else
+        {
+            led_write(LED_G_PORT, LED_G_PIN, (slow_cnt < 12u) ? 1 : 0);  /* 离线: 1Hz 慢闪 */
+        }
+
+        led_write(LED_B_PORT, LED_B_PIN, (bt->ok_cnt != 0u) ? 1 : 0);
+
+        if (bt->err_cnt != last_err)
+        {
+            last_err = bt->err_cnt;
+            last_err_t = now;
+        }
+        if (bt->err_cnt != 0u && (now - last_err_t) < 1000u)
+        {
+            led_write(LED_R_PORT, LED_R_PIN, (fast_cnt < 3u) ? 1 : 0);   /* 5Hz 快闪 */
+        }
     }
 }
 
 #else   /* LED_IND_EN == 0 */
 
 void led_ind_init(void) { }
-void led_ind_task(void) { }
+void led_ind_task(uint8_t mode, uint8_t k210_online, uint8_t has_target)
+{
+    (void)mode; (void)k210_online; (void)has_target;
+}
 
 #endif
