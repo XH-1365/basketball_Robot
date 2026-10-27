@@ -1,0 +1,27 @@
+# ============================================================
+#  换行符策略
+#  板端脚本（body_detect.py 会被推成 /flash/main.py + /sd/main.py）
+#  一律保持 LF —— 别让 Windows 的 CRLF 混进去改变推上去的字节数。
+# ============================================================
+
+* text=auto
+
+# 板端 / PC 端 Python 脚本：强制 LF
+*.py    text eol=lf
+
+# 文档：LF
+*.md    text eol=lf
+*.txt   text eol=lf
+*.svg   text eol=lf
+
+# Windows 批处理：必须 CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 二进制：别碰
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.kmodel binary
+*.bin   binary
+*.pyc   binary

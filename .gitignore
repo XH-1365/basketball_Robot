@@ -1,0 +1,54 @@
+# ============================================================
+#  K210 人体检测项目 — 忽略规则
+#  原则：只把"人写的、看得到的、重建不划算的"东西放进仓库
+# ============================================================
+
+# ---------- 大块二进制：绝对不进仓库 ----------
+# TF 卡整卡备份（160 MB，含 Yahboom 厂商 10 个官方 kmodel）
+# 只是卡的冷备，放本地/网盘就行，进仓库会把 repo 撑爆
+_tf_backup_20261001/
+
+# ---------- Python 缓存 ----------
+__pycache__/
+*.pyc
+
+# ---------- 测试产物：只留"证据级"的小图 ----------
+# 生成的拼图/大图（如 chess_corners_montage.png，2.7MB）都能由 tools/ 下的
+# 脚本从原始数据重建，没必要占位。
+# 保留：caps/（真人验证原图，是 FOCAL_PX 第二条证据链）、
+#       chess_imgs/（棋盘格标定原始 24 张，标定结果的可复现来源）、
+#       caps_annotated.png（回画标注，量框过程的证据）
+testimgs/*
+!/testimgs/caps
+!/testimgs/chess_imgs
+!/testimgs/caps_annotated.png
+
+# ---------- 串口调试日志 ----------
+tools/*.log
+
+# ---------- 文档构建的临时产物 ----------
+# _pdfin/_pdfout/_loprof 是 LibreOffice 渲染核验用的工作目录，随时可删
+# _standalone*.json/_standalone_*.html 是 _mkstandalone.py 的中间产物，可重建
+# docs/_pre_*.bak.docx 是各后处理脚本跑之前自动留的回滚备份，可重建
+# 保留 docs/（成品手册 docx + pdf）与构建/核验脚本（可复现整条链路）
+_pdfin/
+_pdfout/
+_loprof/
+_standalone.json
+_standalone_cover.html
+_standalone_body.html
+docs/_pre_*.bak.docx
+docs/*.tmp
+_wordtest/
+
+# ---------- 编辑器 / 系统 ----------
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# 结构 dump / 文档构建临时目录（docbuild 每次重建）
+_struct_dump*.json
+_tmpdoc/
+docs/_manual_build.docx
+_chapter.html
