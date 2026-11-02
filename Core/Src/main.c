@@ -383,13 +383,14 @@ int main(void)
 			uint8_t a_hold = bt_rc_key_a();
 			int8_t esc_key = 0;
 
-			/* RB(R1) 加速 / LB(L1) 减速, 每 ESC_SPEED_TICK_MS 变 ESC_SPEED_STEP 档
+			/* RB 加速 / LB 减速, 每 ESC_SPEED_TICK_MS 变 ESC_SPEED_STEP 档
+			 * 注意: 按键在 key2 的位掩码里(LB=bit6, RB=bit7); key1 是方向枚举不是位掩码
 			 * 方向键已改控俯仰步进, 无刷速度改用肩键; A 键仍是使能(松开出力归 0) */
-			if ((bt->key1 & BT_KEY_R1) != 0u)
+			if ((bt->key2 & BT_KEY2_RB) != 0u)
 			{
 				esc_key = 1;
 			}
-			else if ((bt->key1 & BT_KEY_L1) != 0u)
+			else if ((bt->key2 & BT_KEY2_LB) != 0u)
 			{
 				esc_key = -1;
 			}

@@ -109,6 +109,8 @@ uint8_t bt_rc_is_online(void);      /* 1=在线(超时时间内有有效帧) */
  * 按键1是方向枚举(不是位掩码): 1=上 3=右 5=下 7=左
  */
 #define BT_KEY2_A             0x01
+#define BT_KEY2_LB            0x40         /* 手柄 LB / APP-K3 位, 减速 */
+#define BT_KEY2_RB            0x80         /* 手柄 RB / APP-K4 位, 加速 */
 #define BT_DPAD_UP            1
 #define BT_DPAD_DOWN          5
 
