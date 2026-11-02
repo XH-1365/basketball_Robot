@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    dshot.h
-  * @brief   DShot300 电调协议输出驱动（TIM1 四路 + TIM8 三路，DMA burst 一位一位发）
+  * @brief   DShot300 电调协议输出驱动（TIM8 三路，DMA burst 一位一位发）
   ******************************************************************************
   * 为什么换 DShot
   *   OneShot125 是纯模拟脉宽：没有校验、没有明确的"停车码"，电调靠输入捕获量脉宽，
@@ -10,8 +10,7 @@
   *   value=0 是明确的"电机停"，信号断了电调自己进失控保护。分辨率 2048 级。
   *
   * 通道映射（与 oneshot125 完全相同，引脚/复用由 CubeMX 配好，本模块不动 GPIO）
-  *   TIM1_CH1 -> PE9     TIM1_CH2 -> PE11    TIM1_CH3 -> PE13    TIM1_CH4 -> PE14
-  *   TIM8_CH1 -> PC6     TIM8_CH2 -> PI6     TIM8_CH3 -> PI7
+   *   TIM8_CH1 -> PC6     TIM8_CH2 -> PI6     TIM8_CH3 -> PI7
   *
   * 位时序（DShot300 = 300kbit/s）
   *   APB2 定时器时钟 168MHz，PSC=0 -> 1 tick = 1/168 us
@@ -26,8 +25,8 @@
   *   DShot 每一位的高电平宽度都不一样，硬件 PWM 一个 ARR 只能出等宽波形，
   *   所以必须"每 3.33us 换一次 CCR"。做法是让定时器每次 update 事件触发
   *   一次 DMA burst，一次把 CCR1~CCR4 全写掉：
-  *     DMA2_Stream5 / Ch6 -> TIM1_UP，DCR burst 4 拍，写 CCR1~CCR4
-  *     DMA2_Stream1 / Ch7 -> TIM8_UP，DCR burst 4 拍，写 CCR1~CCR4（CH4 未用）
+   *     DMA2_Stream1 / Ch7 -> TIM8_UP，DCR burst 4 拍，写 CCR1~CCR4（CH4 未用）
+ *   TIM1 已整体让给步进脉冲（stepper.c），本驱动只管 TIM8。
   *   CCR 预装载(OCxPE) 保证"这次写的值在下一个 bit 周期才生效"，正好逐位发送。
   *   参考实现：Betaflight 的 USE_DSHOT_DMAR 分支（LL_TIM_ConfigDMABurst +
   *   LL_TIM_EnableDMAReq_UPDATE + 目标 &tim->DMAR + WORD/WORD）。
@@ -52,8 +51,7 @@
   *      若锁死在 OneShot125，要先在 BLHeliSuite 里改成 Auto 或 DShot300。
   *   2) 本驱动不发 DShot 命令字(1~47)，也不支持双向遥测(eRPM)。
   *      BLHeli_S 想要遥测必须刷 Bluejay 固件。
-  *   3) 与 OSH125_Init() 互斥：两个模块都想改 TIM1/TIM8 的 PSC/ARR，只能启用一个。
-  ******************************************************************************
+   ******************************************************************************
   */
 
 #ifndef __DSHOT_H
@@ -111,7 +109,7 @@ extern "C" {
 #define DSHOT_VALUE_STOP        0U
 
 /* 输出路数，必须与下方通道枚举、dshot.c 的映射一致 */
-#define DSHOT_CH_NUM            7U
+#define DSHOT_CH_NUM            3U
 
 /* 上电保持零油门的时间(ms)。电调要看到连续合法帧才解锁，1~3s 视固件而定 */
 #define DSHOT_ARM_MS            2000U
@@ -119,21 +117,17 @@ extern "C" {
 /* ============================ 通道枚举 ==================================== */
 typedef enum
 {
-    DSHOT_TIM1_CH1 = 0,     /* PE9  */
-    DSHOT_TIM1_CH2,         /* PE11 */
-    DSHOT_TIM1_CH3,         /* PE13 */
-    DSHOT_TIM1_CH4,         /* PE14 */
-    DSHOT_TIM8_CH1,         /* PC6  */
-    DSHOT_TIM8_CH2,         /* PI6  */
-    DSHOT_TIM8_CH3          /* PI7  */
+    DSHOT_CH1 = 0,          /* PC6  TIM8_CH1 */
+    DSHOT_CH2,              /* PI6  TIM8_CH2 */
+    DSHOT_CH3               /* PI7  TIM8_CH3 */
 } dshot_ch_t;
 
 /* ============================ 对外接口 ==================================== */
 
 /**
-  * @brief  初始化 7 路 DShot 输出：改 PSC/ARR 成 300kbit 位时序，配好 DMA burst，
-  *         启动 PWM 与环形 DMA。上电后硬件自动不停重发 value=0 的帧。
-  * @note   必须在 MX_TIM1_Init() / MX_TIM8_Init() 之后调用；与 OSH125_Init() 互斥。
+  * @brief  初始化 3 路 DShot 输出(TIM8 CH1~CH3)：改 PSC/ARR 成 300kbit 位时序，
+  *         配好 DMA burst，启动 PWM 与环形 DMA。上电后硬件自动不停重发 value=0 的帧。
+  * @note   必须在 MX_TIM8_Init() 之后调用。TIM1 已改作步进脉冲, 不再参与 DShot。
   */
 void DShot_Init(void);
 
@@ -143,12 +137,12 @@ void DShot_Init(void);
 void DShot_SetValue(uint8_t ch, uint16_t value);
 
 /**
-  * @brief  设定全部 7 路的原始值 0~2047。
+  * @brief  设定全部 3 路的原始值 0~2047。
   */
 void DShot_SetAllValue(uint16_t value);
 
 /**
-  * @brief  按油门比例设定全部 7 路：0.0f -> 停(0)，其余线性映射到 48~2047。
+  * @brief  按油门比例设定全部 3 路：0.0f -> 停(0)，其余线性映射到 48~2047。
   * @param  throttle 0.0~1.0，超范围钳位，NaN 当 0
   */
 void DShot_SetAllThrottle(float throttle);

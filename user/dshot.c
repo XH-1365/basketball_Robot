@@ -1,7 +1,7 @@
-﻿/**
+/**
   ******************************************************************************
   * @file    dshot.c
-  * @brief   DShot300 电调协议输出驱动（TIM1 四路 + TIM8 三路，DMA burst 逐位发送）
+  * @brief   DShot300 电调协议输出驱动（TIM8 三路，DMA burst 逐位发送）
   ******************************************************************************
   * 时序推导
   *   SYSCLK 168MHz，APB2 分频 2 -> PCLK2 84MHz -> 定时器时钟 x2 = 168MHz。
@@ -28,7 +28,7 @@
 
 /* ============================ 内部常量 ==================================== */
 
-/* 每个槽写 4 个 CCR（TIM1 全用；TIM8 第 4 个写的是没启用的 CH4，无害） */
+/* 每个槽写 4 个 CCR（实际只用 CH1~CH3；第 4 个写的是没启用的 CH4，无害） */
 #define DSHOT_WORDS_PER_SLOT    4U
 
 /* 一个定时器一帧要搬多少个 32bit 字 */
@@ -40,10 +40,8 @@
 /* ============================ 内部变量 ==================================== */
 
 /* DMA 搬运源缓冲：必须常驻、不能是局部变量 */
-static uint32_t s_buf_tim1[DSHOT_BUF_WORDS];
 static uint32_t s_buf_tim8[DSHOT_BUF_WORDS];
 
-static DMA_HandleTypeDef s_hdma_tim1_up;    /* DMA2_Stream5 / Ch6 -> TIM1_UP */
 static DMA_HandleTypeDef s_hdma_tim8_up;    /* DMA2_Stream1 / Ch7 -> TIM8_UP */
 
 static uint16_t s_value[DSHOT_CH_NUM];      /* 各路当前值 0~2047 */
@@ -96,7 +94,7 @@ static uint32_t dshot_slot_ticks(uint16_t packet, uint32_t slot)
 /**
   * @brief  按当前 s_value[] 填充某个定时器的 DMA 缓冲
   * @param  dst    目标缓冲
-  * @param  first  该定时器第一路的全局通道号（TIM1=0，TIM8=4）
+  * @param  first  该定时器第一路的全局通道号（TIM8 现为 0）
   * @param  nch    该定时器实际使用的通道数
   */
 static void dshot_fill_buffer(uint32_t *dst, uint8_t first, uint8_t nch)
@@ -186,17 +184,11 @@ static void dshot_apply(void)
         return;
     }
 
-    s_packet = dshot_make_packet(s_value[DSHOT_TIM1_CH1]);
-
-    __HAL_DMA_DISABLE(&s_hdma_tim1_up);
-    while ((s_hdma_tim1_up.Instance->CR & DMA_SxCR_EN) != 0U) { }
-    dshot_fill_buffer(s_buf_tim1, 0U, 4U);
-    __HAL_DMA_SET_COUNTER(&s_hdma_tim1_up, DSHOT_BUF_WORDS);
-    __HAL_DMA_ENABLE(&s_hdma_tim1_up);
+    s_packet = dshot_make_packet(s_value[0]);
 
     __HAL_DMA_DISABLE(&s_hdma_tim8_up);
     while ((s_hdma_tim8_up.Instance->CR & DMA_SxCR_EN) != 0U) { }
-    dshot_fill_buffer(s_buf_tim8, 4U, DSHOT_TIM8_CH_NUM);
+    dshot_fill_buffer(s_buf_tim8, 0U, DSHOT_TIM8_CH_NUM);
     __HAL_DMA_SET_COUNTER(&s_hdma_tim8_up, DSHOT_BUF_WORDS);
     __HAL_DMA_ENABLE(&s_hdma_tim8_up);
 }
@@ -233,29 +225,12 @@ void DShot_Init(void)
 
     __HAL_RCC_DMA2_CLK_ENABLE();
 
-    /* ---------------- TIM1：CH1~CH4（PE9/PE11/PE13/PE14） ---------------- */
-    dshot_timer_config(&htim1, TIM_DMABURSTLENGTH_4TRANSFERS);
-    dshot_dma_config(&s_hdma_tim1_up, DMA2_Stream5, DMA_CHANNEL_6);
-
-    dshot_fill_buffer(s_buf_tim1, 0U, 4U);
-    (void)HAL_DMA_Start(&s_hdma_tim1_up,
-                        (uint32_t)s_buf_tim1,
-                        (uint32_t)&TIM1->DMAR,
-                        DSHOT_BUF_WORDS);
-
-    /* 先开通道（HAL 会置 CCxE 和高级定时器必需的 MOE），再开 update DMA 请求。
-       顺序反了的话，DMA 会在通道还没打开时就把一整帧搬完。 */
-    (void)HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    (void)HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-    (void)HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-    (void)HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-    __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
-
-    /* ---------------- TIM8：CH1~CH3（PC6/PI6/PI7） ---------------- */
+    /* ---------------- TIM8：CH1~CH3（PC6/PI6/PI7） ----------------
+       TIM1 已改作步进脉冲(stepper.c), 这里不再初始化 TIM1。 */
     dshot_timer_config(&htim8, TIM_DMABURSTLENGTH_4TRANSFERS);
     dshot_dma_config(&s_hdma_tim8_up, DMA2_Stream1, DMA_CHANNEL_7);
 
-    dshot_fill_buffer(s_buf_tim8, 4U, DSHOT_TIM8_CH_NUM);
+    dshot_fill_buffer(s_buf_tim8, 0U, DSHOT_TIM8_CH_NUM);
     (void)HAL_DMA_Start(&s_hdma_tim8_up,
                         (uint32_t)s_buf_tim8,
                         (uint32_t)&TIM8->DMAR,

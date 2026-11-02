@@ -22,6 +22,7 @@
 #include "bsp_can.h"
 #include "chassis_solve.h"
 #include "bt_rc.h"
+#include "stepper.h"   /* 俯仰步进: TIM1_CH1(PE9)+DIR(PE11)+限位(PE13) */
 #include "debug_port.h"
 #include "led_ind.h"
 #include "pid.h"
@@ -209,7 +210,8 @@ int main(void)
   led_ind_init();               /* 板载三色LED: 无串口也能看蓝牙状态 */
   debug_print("chassis bt-rc up\r\n");
   MX_TIM8_Init();               /* 7 路无刷电调: TIM8_CH1~3 (PC6/PI6/PI7) */
-  MX_TIM1_Init();               /*               TIM1_CH1~4 (PE9/PE11/PE13/PE14) */
+  MX_TIM1_Init();               /* TIM1_CH1(PE9) = 俯仰步进 STEP 脉冲 */
+  stepper_init();               /* 步进: DIR(PE11) 输出 + 限位(PE13) 输入 + PWM 通道启动 */
   DShot_Init();                 /* DShot300 环形 DMA, 上电即持续发零油门帧 */
   {
     /* 等电调解锁(BLHeli_S 约 1~3s), 期间必须持续发帧并喂狗 */
@@ -241,6 +243,10 @@ int main(void)
 		HAL_IWDG_Refresh(&hiwdg);   /* 喂狗不依赖遥控数据, 防止断连复位 */
 
 		bt = bt_rc_update();        /* 内部处理超时离线(摇杆自动归零) */
+
+		/* 俯仰步进: 方向键 上=升 下=降 松开=停; 内部做斜坡/限位/换向保护 */
+		stepper_set_dir(bt_rc_dir());
+		stepper_task_10ms();
 		kf = k210_follow_get();
 		led_ind_task(mode, kf->online, (kf->online && kf->state == 'L') ? 1u : 0u);  /* LED: 模式+目标状态 */
 		k210_follow_task();         /* K210 看门狗/超时处理 */
@@ -367,34 +373,15 @@ int main(void)
 
 		CAN_cmd_chassis(speed[0], speed[1], speed[2], speed[3]);
 
-		/* ---- 7 路无刷 (LANRC 同款操作): A 键使能 + 方向键调速 ---- */
+		/* ---- 3 路无刷 (TIM8 CH1~CH3): A 键使能 -> 满油门 ---- */
 		{
-			static float esc_speed = ESC_SPEED_INIT;
 			static float esc_out = -1.0f;      /* 实际输出(斜坡后的值) */
 			static float esc_write = -1.0f;    /* 上次下发给电调的值 */
-			static uint32_t esc_speed_tick = 0;
 			float out;
 			uint8_t a_hold = bt_rc_key_a();
-			int8_t key_updown = bt_rc_dir();
 
-			if (key_updown != 0)
-			{
-				uint32_t elapsed = HAL_GetTick() - esc_speed_tick;
-				if (elapsed >= ESC_SPEED_TICK_MS)
-				{
-					uint32_t steps = elapsed / ESC_SPEED_TICK_MS;
-					esc_speed_tick += steps * ESC_SPEED_TICK_MS;
-					esc_speed += (float)key_updown * ESC_SPEED_STEP * (float)steps;
-					if (esc_speed < 0.0f) { esc_speed = 0.0f; }
-					if (esc_speed > 1.0f) { esc_speed = 1.0f; }
-				}
-			}
-			else
-			{
-				esc_speed_tick = HAL_GetTick();
-			}
-
-			out = (a_hold != 0u) ? (esc_speed * ESC_RUN_THROTTLE) : 0.0f;
+			/* 方向键已改控俯仰步进, 无刷固定满油门; A 键使能即转, 松开停 */
+			out = (a_hold != 0u) ? ESC_RUN_THROTTLE : 0.0f;
 
 			/* 首拍从 0 起步, 避免 -1 占位值被当成有效输出 */
 			if (esc_out < 0.0f)
@@ -421,7 +408,7 @@ int main(void)
 				DShot_SetAllThrottle(esc_out);
 			}
 
-			V2_dbg.esc_speed_x100 = (int32_t)(esc_speed * 100.0f + 0.5f);
+			V2_dbg.esc_speed_x100 = (int32_t)(out * 100.0f + 0.5f);   /* 目标油门(固定值) */
 			V2_dbg.esc_out_x100 = (int32_t)(esc_out * 100.0f + 0.5f);
 			V2_dbg.esc_pkt = DShot_GetPacket();
 			V2_dbg.esc_a_hold = a_hold;

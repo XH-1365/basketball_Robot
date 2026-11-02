@@ -50,3 +50,6 @@ Desktop.ini
 _read_bt.py
 _pid_tuner*.py
 MDK-ARM/*.log
+
+# ---- 一次性改码补丁脚本（锚点替换工具，跑完即弃） ----
+_patch_*.py

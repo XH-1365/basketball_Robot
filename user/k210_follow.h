@@ -63,14 +63,14 @@ extern "C" {
 /* ★ 锁定距离(cm)：人与底盘的期望间距。改这一个数就换锁定距离。
  *   1 格 = 1cm。常用值：100~150。小于 40 时人贴身，底盘会一直后退。
  *   运行中也能改：k210_follow_set_target_dist_cm(cm)，范围 20~500。 */
-#define K210_FOLLOW_DIST_CM     120
+#define K210_FOLLOW_DIST_CM     450
 
 /* 运行时目标距离的合法范围(cm), 超出会被钳住 */
 #define K210_DIST_CM_MIN        20
-#define K210_DIST_CM_MAX        500
+#define K210_DIST_CM_MAX        600
 
 /* 距离死区(cm): 实际距离在 目标±此值 内不动, 防止贴着临界点前后窜 */
-#define K210_DIST_DEADBAND_CM   5
+#define K210_DIST_DEADBAND_CM   20
 
 /* 距离比例系数(rpm/cm): vx = KV * 距离误差。
  * 误差 60cm -> 480rpm; 误差 150cm -> 打满 1200rpm。追得太猛就调小, 太肉就调大。 */
