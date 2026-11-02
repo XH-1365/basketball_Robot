@@ -93,7 +93,7 @@
 #define ESC_RUN_THROTTLE   1.0f   /* 满档油门上限 0.0~1.0 */
 #define ESC_SPEED_STEP     0.025f /* 每 ESC_SPEED_TICK_MS 调 2.5%, 0->100% 约 2s */
 #define ESC_SPEED_TICK_MS  50u
-#define ESC_SPEED_INIT     0.0f
+#define ESC_SPEED_INIT     0.3f   /* 上电初始油门档位, 一按 A 即按此速度转(0.3=30%) */
 /* 油门斜坡: 每拍(10ms)变化 1%, 0->100% 约 1s, 升降同速(用户要求慢慢变) */
 #define ESC_RAMP_STEP      0.01f
 #define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
@@ -373,15 +373,45 @@ int main(void)
 
 		CAN_cmd_chassis(speed[0], speed[1], speed[2], speed[3]);
 
-		/* ---- 3 路无刷 (TIM8 CH1~CH3): A 键使能 -> 满油门 ---- */
+		/* ---- 3 路无刷 (TIM8 CH1~CH3): A 键使能 + LB/RB 调速 ---- */
 		{
+			static float esc_speed = ESC_SPEED_INIT;  /* 油门档位 0~1, LB/RB 调 */
 			static float esc_out = -1.0f;      /* 实际输出(斜坡后的值) */
 			static float esc_write = -1.0f;    /* 上次下发给电调的值 */
+			static uint32_t esc_speed_tick = 0;
 			float out;
 			uint8_t a_hold = bt_rc_key_a();
+			int8_t esc_key = 0;
 
-			/* 方向键已改控俯仰步进, 无刷固定满油门; A 键使能即转, 松开停 */
-			out = (a_hold != 0u) ? ESC_RUN_THROTTLE : 0.0f;
+			/* RB(R1) 加速 / LB(L1) 减速, 每 ESC_SPEED_TICK_MS 变 ESC_SPEED_STEP 档
+			 * 方向键已改控俯仰步进, 无刷速度改用肩键; A 键仍是使能(松开出力归 0) */
+			if ((bt->key1 & BT_KEY_R1) != 0u)
+			{
+				esc_key = 1;
+			}
+			else if ((bt->key1 & BT_KEY_L1) != 0u)
+			{
+				esc_key = -1;
+			}
+
+			if (esc_key != 0)
+			{
+				uint32_t elapsed = HAL_GetTick() - esc_speed_tick;
+				if (elapsed >= ESC_SPEED_TICK_MS)
+				{
+					uint32_t steps = elapsed / ESC_SPEED_TICK_MS;
+					esc_speed_tick += steps * ESC_SPEED_TICK_MS;
+					esc_speed += (float)esc_key * ESC_SPEED_STEP * (float)steps;
+					if (esc_speed < 0.0f) { esc_speed = 0.0f; }
+					if (esc_speed > 1.0f) { esc_speed = 1.0f; }
+				}
+			}
+			else
+			{
+				esc_speed_tick = HAL_GetTick();
+			}
+
+			out = (a_hold != 0u) ? (esc_speed * ESC_RUN_THROTTLE) : 0.0f;
 
 			/* 首拍从 0 起步, 避免 -1 占位值被当成有效输出 */
 			if (esc_out < 0.0f)
@@ -408,7 +438,7 @@ int main(void)
 				DShot_SetAllThrottle(esc_out);
 			}
 
-			V2_dbg.esc_speed_x100 = (int32_t)(out * 100.0f + 0.5f);   /* 目标油门(固定值) */
+			V2_dbg.esc_speed_x100 = (int32_t)(esc_speed * 100.0f + 0.5f);   /* 当前油门档位 */
 			V2_dbg.esc_out_x100 = (int32_t)(esc_out * 100.0f + 0.5f);
 			V2_dbg.esc_pkt = DShot_GetPacket();
 			V2_dbg.esc_a_hold = a_hold;
