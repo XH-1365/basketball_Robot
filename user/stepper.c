@@ -30,6 +30,8 @@ static uint8_t  s_lock_dn;          /* 1 = 禁止继续朝"降"方向 */
 static uint32_t s_limit_seen_tick;  /* 最后一次看到限位有效的时刻 */
 static float    s_step_frac;        /* 步数累加器的小数部分 */
 static uint32_t s_steps;            /* 估算累计步数（调试用） */
+static float    s_pos_frac;         /* 位置累加器的小数部分(带符号) */
+static int32_t  s_pos;              /* 相对零位步数: 升为正/降为负, 碰限位清零 */
 
 /* ============================ 内部函数 ==================================== */
 
@@ -103,6 +105,8 @@ void stepper_init(void)
     s_lock_dn         = 0u;
     s_step_frac       = 0.0f;
     s_steps           = 0u;
+    s_pos_frac        = 0.0f;
+    s_pos             = 0;
     s_limit_seen_tick = HAL_GetTick() - STEP_LIMIT_RELEASE_MS;  /* 上电不算锁死 */
 
     /* ---- PE11(DIR) / PE13(限位) 归本模块管, 不依赖 MX_GPIO_Init ---- */
@@ -169,6 +173,8 @@ void stepper_task_10ms(void)
 
         s_limit_seen_tick = HAL_GetTick();
         s_rpm = 0.0f;                    /* 撞上立即停, 不走斜坡 */
+        s_pos      = 0;                  /* 机械零位: 每次碰到限位重新定零 */
+        s_pos_frac = 0.0f;
         stepper_apply_pwm(0.0f);
         return;
     }
@@ -248,7 +254,7 @@ void stepper_task_10ms(void)
     /* ---------------- 4. 输出 ---------------- */
     stepper_apply_pwm(s_rpm);
 
-    /* ---------------- 5. 步数估算(调试用) ---------------- */
+    /* ---------------- 5. 步数估算(调试用) + 零位计数 ---------------- */
     {
         float df = fabsf(s_rpm) * STEP_STEPS_PER_REV / 60.0f * dt;
         s_step_frac += df;
@@ -257,6 +263,21 @@ void stepper_task_10ms(void)
             uint32_t whole = (uint32_t)s_step_frac;
             s_steps += whole;
             s_step_frac -= (float)whole;
+        }
+
+        /* 带符号位置: 升为正, 降为负; 碰限位时在上面第 1 段已清零 */
+        s_pos_frac += (s_rpm > 0.0f) ? df : -df;
+        if (s_pos_frac >= 1.0f)
+        {
+            int32_t whole = (int32_t)s_pos_frac;
+            s_pos += whole;
+            s_pos_frac -= (float)whole;
+        }
+        else if (s_pos_frac <= -1.0f)
+        {
+            int32_t whole = (int32_t)(-s_pos_frac);
+            s_pos -= whole;
+            s_pos_frac += (float)whole;
         }
     }
 }
@@ -280,6 +301,16 @@ uint8_t stepper_limit_active(void)
 uint8_t stepper_is_moving(void)
 {
     return (fabsf(s_rpm) > 0.05f) ? 1u : 0u;
+}
+
+int32_t stepper_get_pos(void)
+{
+    return s_pos;
+}
+
+float stepper_get_pos_deg(void)
+{
+    return (float)s_pos * 360.0f / STEP_STEPS_PER_REV;
 }
 
 /************************ (C) COPYRIGHT *****END OF FILE***********************/

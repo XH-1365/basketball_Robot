@@ -26,7 +26,7 @@
 #define STEP_STEPS_PER_REV      6400.0f
 
 /* 最高俯仰转速 (RPM)。60 RPM 时步频 6400Hz, STEP 高电平约 78us */
-#define STEP_RPM_MAX            60.0f
+#define STEP_RPM_MAX            10.0f
 
 /* 起转最低转速 (RPM)。低于此转速扭矩不足易丢步, 斜坡从这里开始 */
 #define STEP_RPM_MIN            1.5f
@@ -70,5 +70,7 @@ int8_t  stepper_get_dir(void);        /* 最近一次指令方向 */
 float   stepper_get_rpm(void);        /* 当前实际转速 (带符号, >0 = 升) */
 uint8_t stepper_limit_active(void);   /* 1 = 限位当前被压住 */
 uint8_t stepper_is_moving(void);      /* 1 = 正在转 (|rpm| > 0.05) */
+int32_t stepper_get_pos(void);        /* 相对零位步数: 升+ 降-, 碰限位清零 */
+float   stepper_get_pos_deg(void);    /* 同上, 换算成角度(度) */
 
 #endif /* __STEPPER_H */

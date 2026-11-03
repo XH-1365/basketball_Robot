@@ -143,6 +143,8 @@ typedef struct
 	uint32_t esc_pkt;           /* 最近 DShot 16bit 帧 */
 	uint32_t esc_a_hold;        /* A 键判定结果 0/1 (排查自转) */
 	uint32_t esc_key2;          /* 按键2 原始字节 (排查自转) */
+	int32_t  stepper_pos;       /* 步进相对零位步数(升+/降-/碰限位清零) */
+	uint32_t stepper_lim;       /* 步进限位压住 0/1 */
 } v2_dbg_t;
 
 /* USER CODE END PD */
@@ -444,6 +446,8 @@ int main(void)
 			V2_dbg.esc_pkt = DShot_GetPacket();
 			V2_dbg.esc_a_hold = a_hold;
 			V2_dbg.esc_key2 = bt->key2;
+			V2_dbg.stepper_pos = stepper_get_pos();
+			V2_dbg.stepper_lim = stepper_limit_active();
 		}
 		k210_follow_report(mode);   /* 200ms 节流回传, 走 USART6(K210 可见) */
 
