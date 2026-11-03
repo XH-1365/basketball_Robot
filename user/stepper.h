@@ -28,8 +28,9 @@
  *    不改的话实际转速 = 设定值 x (1600/这里) 的偏差 */
 #define STEP_STEPS_PER_REV      1600.0f
 
-/* 最高俯仰转速 (RPM)。60 RPM 时步频 6400Hz, STEP 高电平约 78us */
-#define STEP_RPM_MAX            10.0f
+/* 最高俯仰转速 (RPM)。这是"真实"转速(8 细分已校准):
+ * 2.5 RPM = 步频 66.7Hz, 一圈 24 秒, 俯仰机构够慢够稳 */
+#define STEP_RPM_MAX            2.5f
 
 /* 起转最低转速 (RPM)。低于此转速扭矩不足易丢步, 斜坡从这里开始 */
 #define STEP_RPM_MIN            1.5f
