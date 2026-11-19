@@ -64,6 +64,7 @@ extern CAN_HandleTypeDef hcan2;
 extern DMA_HandleTypeDef hdma_usart3_rx;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart6;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -235,6 +236,18 @@ void CAN1_RX0_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles USART1 global interrupt.
+  */
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+  /* USER CODE END USART1_IRQn 1 */
+}
+
+/**
   * @brief This function handles USART3 global interrupt.
   */
 void USART3_IRQHandler(void)
@@ -246,18 +259,6 @@ void USART3_IRQHandler(void)
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
-}
-
-/**
-  * @brief This function handles USART1 global interrupt.
-  */
-void USART1_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART1_IRQn 0 */
-  /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
-  /* USER CODE BEGIN USART1_IRQn 1 */
-  /* USER CODE END USART1_IRQn 1 */
 }
 
 /**
@@ -274,24 +275,37 @@ void CAN2_RX0_IRQHandler(void)
   /* USER CODE END CAN2_RX0_IRQn 1 */
 }
 
-/* USER CODE BEGIN 1 */
-
-/*
- * K210 视觉跟随接收: USART6(PG9) RXNE 中断。
- * bt_rc.c 已占用 HAL_UART_RxCpltCallback, 这里直接寄存器级收字节。
- */
+/**
+  * @brief This function handles USART6 global interrupt.
+  */
 void USART6_IRQHandler(void)
 {
-	uint32_t sr = USART6->SR;
+  /* USER CODE BEGIN USART6_IRQn 0 */
+  {
+    /* K210 视觉跟随接收: 寄存器级收字节。
+     * 先在这里读走数据/清标志, 下面 HAL_UART_IRQHandler 因标志已清基本空转。
+     * bt_rc.c 已占用 HAL_UART_RxCpltCallback, 所以不走 HAL 接收流程。 */
+    uint32_t sr = USART6->SR;
 
-	if (sr & (USART_SR_ORE | USART_SR_FE | USART_SR_NE | USART_SR_PE))
-	{
-		(void)USART6->DR;       /* 先SR后DR, 清错误标志 */
-	}
-	if (sr & USART_SR_RXNE)
-	{
-		k210_follow_on_rx((uint8_t)(USART6->DR & 0xFFU));
-	}
+    if (sr & (USART_SR_ORE | USART_SR_FE | USART_SR_NE | USART_SR_PE))
+    {
+      (void)USART6->DR;       /* 先SR后DR, 清错误标志 */
+    }
+    if (sr & USART_SR_RXNE)
+    {
+      k210_follow_on_rx((uint8_t)(USART6->DR & 0xFFU));
+    }
+  }
+  /* USER CODE END USART6_IRQn 0 */
+  HAL_UART_IRQHandler(&huart6);
+  /* USER CODE BEGIN USART6_IRQn 1 */
+
+  /* USER CODE END USART6_IRQn 1 */
 }
+
+/* USER CODE BEGIN 1 */
+
+/* 本文件里的 USART6_IRQHandler 是 CubeMX 生成函数, 手写逻辑已移入其 USER CODE 槽位。
+ * 切勿在这里再定义同名函数(会重复定义, 编译不过)。 */
 
 /* USER CODE END 1 */

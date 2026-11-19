@@ -1,28 +1,24 @@
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * File Name          : TIM.c
-  * Description        : This file provides code for the configuration
-  *                      of the TIM instances.
+  * @file    tim.c
+  * @brief   This file provides code for the configuration
+  *          of the TIM instances.
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2026 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
-
+/* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "tim.h"
-
-/* TIM8 为 DShot300 输出（dshot.c 接管 PSC/ARR）；TIM1 改为步进脉冲：PSC=167 -> 1MHz，
-   0 * 由 stepper.c 动态改 ARR 调步频，仅用 CH1(PE9)。
-   CCR=125~250 -> 125~250us 脉宽。参数集中在 Inc/oneshot125.h，改协议看那里。 */
 
 /* USER CODE BEGIN 0 */
 
@@ -34,11 +30,19 @@ TIM_HandleTypeDef htim8;
 /* TIM1 init function */
 void MX_TIM1_Init(void)
 {
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
 
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 167;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -66,7 +70,7 @@ void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;   /* 初始不发脉冲; 运行时由 stepper.c 改 ARR/CCR */
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -76,7 +80,6 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  /* TIM1 只留 CH1(PE9) 作为步进 STEP; CH2~CH4 已改作 GPIO, 不再配置 */
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
@@ -88,17 +91,28 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);
 
 }
 /* TIM8 init function */
 void MX_TIM8_Init(void)
 {
+
+  /* USER CODE BEGIN TIM8_Init 0 */
+
+  /* USER CODE END TIM8_Init 0 */
+
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
 
+  /* USER CODE BEGIN TIM8_Init 1 */
+
+  /* USER CODE END TIM8_Init 1 */
   htim8.Instance = TIM8;
   htim8.Init.Prescaler = 167;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -155,6 +169,9 @@ void MX_TIM8_Init(void)
   {
     Error_Handler();
   }
+  /* USER CODE BEGIN TIM8_Init 2 */
+
+  /* USER CODE END TIM8_Init 2 */
   HAL_TIM_MspPostInit(&htim8);
 
 }
@@ -196,8 +213,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
   /* USER CODE END TIM1_MspPostInit 0 */
     __HAL_RCC_GPIOE_CLK_ENABLE();
     /**TIM1 GPIO Configuration
-    PE9     ------> TIM1_CH1   (步进 STEP 脉冲)
-       PE11 / PE13 由 stepper.c 配成普通 GPIO, 不在此复用
+    PE9     ------> TIM1_CH1
     */
     GPIO_InitStruct.Pin = GPIO_PIN_9;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -215,13 +231,13 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
   /* USER CODE BEGIN TIM8_MspPostInit 0 */
 
   /* USER CODE END TIM8_MspPostInit 0 */
-  
+
     __HAL_RCC_GPIOI_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
-    /**TIM8 GPIO Configuration    
+    /**TIM8 GPIO Configuration
     PI7     ------> TIM8_CH3
     PI6     ------> TIM8_CH2
-    PC6     ------> TIM8_CH1 
+    PC6     ------> TIM8_CH1
     */
     GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_6;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -269,10 +285,9 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 
   /* USER CODE END TIM8_MspDeInit 1 */
   }
-} 
+}
 
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

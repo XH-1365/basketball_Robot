@@ -26,13 +26,22 @@ DebugConfig/
 *.uvguix.*
 *.uvgui.*
 *.uvgui
-*.uvoptx
 *.bak
 *.bak_before_*
 
-# ---- CubeMX / IDE 本地元数据 ----
-.mxproject
+# uvoptx 是"目标选项/调试器配置"，CubeMX 更新 Keil 工程时**必须**能读到它，
+# 空的或缺失都会让生成报错(KeilGenerator.removeFiles NPE / setConfigs FileNotFound)。
+# 所以这一个文件要入库，其余 uvoptx 仍忽略。
+*.uvoptx
+!MDK-ARM/ctrl_2005.uvoptx
+
+# ---- CubeMX / IDE 元数据 ----
+# .mxproject 记录"生成过哪些文件"，入库后重新生成的结果才可复现(否则每次当新文件重写)
 .settings/
+MXTmpFiles/
+
+# ---- CubeMX 无头生成脚本（内含本机绝对路径） ----
+gen.txt
 
 # ---- 压缩包与备份 ----
 *.zip
