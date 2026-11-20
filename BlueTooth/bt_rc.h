@@ -119,16 +119,11 @@ uint8_t bt_rc_is_online(void);      /* 1=在线(超时时间内有有效帧) */
 #define BT_KEY2_A             0x01
 #define BT_KEY2_LB            0x40         /* 手柄 LB / APP-K3 位, 减速 */
 #define BT_KEY2_RB            0x80         /* 手柄 RB / APP-K4 位, 加速 */
-#define BT_KEY2_Y             0x10         /* 手柄 Y: 切换三路无刷正反转(2026-11-20) */
 #define BT_DPAD_UP            1
 #define BT_DPAD_DOWN          5
-
-/* Y 键两次触发的最小间隔(ms), 挡机械抖动导致的连发切换 */
-#define BT_KEY_Y_MIN_GAP_MS   250
 
 uint8_t bt_rc_key_a(void);   /* A 键按住=1; 离线恒 0 */
 int8_t   bt_rc_dir(void);             /* 方向键上=+1 下=-1 松手=0; 离线恒 0; 带 BT_DIR_HOLD_MS 防抖 */
 uint32_t bt_rc_dir_bridge_cnt(void);  /* 被防抖兜住的调用次数(调试用, 主循环约 10ms/次) */
-uint8_t  bt_rc_key_y_edge(void);      /* Y 键按下瞬间=1(边沿); 按住不重复; 离线恒 0 */
 
 #endif /* BT_RC_H */

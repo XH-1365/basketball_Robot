@@ -406,51 +406,6 @@ void DShot_ApplyDirectionConfig(void)
 #endif
 }
 
-/* 三路一起切方向: 一次 apply + 一个保持窗口, 总阻塞仍是一个 HOLD_MS。
- * 逐路调 DShot_SetDirection 会阻塞 3x4=12ms, 主循环(含 CAN 发送)会被拖慢一帧,
- * 所以这里手写批量版本。三路必须先全部停车, 否则电调判非法帧直接忽略。 */
-uint8_t DShot_SetDirectionAll(uint8_t reversed)
-{
-    uint32_t t0;
-    uint8_t  ch;
-    uint16_t cmd;
-
-    if (s_ready == 0U)
-    {
-        return 0U;
-    }
-
-    for (ch = 0U; ch < DSHOT_CH_NUM; ch++)
-    {
-        if (s_value[ch] != DSHOT_VALUE_STOP)
-        {
-            return 0U;
-        }
-    }
-
-    cmd = (reversed != 0U) ? (uint16_t)DSHOT_CMD_SPIN_DIRECTION_REVERSED
-                           : (uint16_t)DSHOT_CMD_SPIN_DIRECTION_NORMAL;
-
-    for (ch = 0U; ch < DSHOT_CH_NUM; ch++)
-    {
-        s_value[ch] = cmd;
-    }
-    dshot_apply();
-
-    t0 = HAL_GetTick();
-    while ((HAL_GetTick() - t0) < DSHOT_CMD_HOLD_MS)
-    {
-        /* 空转 */
-    }
-
-    for (ch = 0U; ch < DSHOT_CH_NUM; ch++)
-    {
-        s_value[ch] = DSHOT_VALUE_STOP;
-    }
-    dshot_apply();
-    return 1U;
-}
-
 void DShot_Stop(void)
 {
     DShot_SetAllValue(DSHOT_VALUE_STOP);
