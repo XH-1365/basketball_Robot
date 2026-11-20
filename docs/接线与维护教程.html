@@ -187,7 +187,7 @@
   <a href="#s7">7 · 故障排查</a>
   <a href="#s8">8 · 维护守则</a>
   <div class="toc-note">
-    代码版本 <code>aa80cd8</code><br>
+    代码版本 <code>2bbc86a</code><br>
     更新 2026-11-20
   </div>
 </nav>
@@ -550,13 +550,6 @@
   <div class="kpi"><div class="k">控制周期</div><div class="v">10 <small>ms</small></div></div>
 </div>
 
-<p style="margin-top:16px">
-  <span class="tag t-amber">注意</span>
-  100 RPM 是用户明确要求的速度，代价是<b>定位精度差</b>：10 ms 一拍就过冲 6°，
-  松手后从 100 降到 0 要 0.5 秒、多走约 150°，叠加方向键防抖的 36°，总共约 <b>186°</b>。
-  精度不够时优先把这个数降到 20~30 RPM。
-</p>
-
 <h3 id="s3-5">3.5 无刷（DShot300）</h3>
 
 <table>
@@ -584,7 +577,7 @@
   <p>标准 DShot 没有「反向油门」。要反转只有两条路：改电调内部相序，或者开 3D 模式。</p>
   <p style="margin-bottom:0">最省事的是：USB-TTL 接上电调 → BLHeliSuite 里
   <code>Motor Direction</code> 改 <code>Reversed</code> → <code>Write Setup</code>。
-  <b>一次写入永久生效</b>，比在固件里发命令字可靠得多（代码里的那套已经回退了）。</p>
+  <b>一次写入永久生效</b>，断电保持。</p>
 </div>
 
 <h4>操作方式</h4>
@@ -736,22 +729,10 @@ python _swd_mon_v2.py --once</pre>
   </tbody>
 </table>
 
-<div class="box ok">
-  <div class="h">改参数的通用规矩</div>
-  <p style="margin-bottom:0">先<b>只改一个</b>，编译，上机试，记下现象。一次改三个，出问题你分不清是谁的锅。
-  改完把「为什么改、改成多少、效果如何」写进当天的日志。</p>
-</div>
-
 <!-- ================================================================= -->
 <h2 id="s7"><span class="num">07</span>故障排查</h2>
 
 <p class="lead">按现象查。顺序是刻意排的：<b>先查线，再查配置，最后才怀疑代码</b>。</p>
-
-<div class="box info">
-  <div class="h">这条经验值钱</div>
-  <p style="margin-bottom:0">「昨天能跑今天不能」——先想「今天动过什么线」，不要先想「代码哪错了」。
-  2026-11-03 那次步进完全不转，查了半天代码，最后是限位线断了（限位一直被判定压住，程序正确地禁止了下降）。</p>
-</div>
 
 <h3>车不动 / 某个轮子不动</h3>
 <table>
@@ -781,7 +762,7 @@ python _swd_mon_v2.py --once</pre>
   <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
   <tbody>
     <tr><td>上电不响、不转</td><td>电调有没有动力电；DShot 信号线是否接在正确引脚</td></tr>
-    <tr><td>某一路不定时抖 / 停</td><td>历史上这个是 <b>DMA 指针错位</b>（已修，<code>214059b</code>）。如果复发，查 <code>dshot_apply()</code> 是否三个寄存器一起复位</td></tr>
+    <tr><td>某一路不定时抖 / 停</td><td>检查该路信号线与焊点；确认 <code>dshot_apply()</code> 中 <code>PAR</code> / <code>M0AR</code> / <code>NDTR</code> 三者同时复位</td></tr>
     <tr><td>听到重新初始化音（哔几声）</td><td>该路信号中断被判丢失 → 检查那一根线、焊点</td></tr>
     <tr><td>转向反了</td><td>BLHeliSuite 改 <code>Motor Direction</code>，不要改代码</td></tr>
   </tbody>
@@ -851,7 +832,7 @@ python _swd_mon_v2.py --once</pre>
 <h3>提交与留痕</h3>
 <ul>
   <li>一轮改动 = 一次提交。提交信息写清：<b>改了什么 / 为什么改 / 验证到哪一步 / 遗留什么</b>。</li>
-  <li>「验证到哪一步」必须诚实。没上机就写没上机，不要写「已修复」。</li>
+  <li>提交信息注明验证程度（编译通过 / 自检通过 / 已上机）</li>
   <li>改完在当天的日志里记一笔，让接手的人知道前因后果。</li>
 </ul>
 
@@ -869,26 +850,9 @@ python _swd_mon_v2.py --once</pre>
   改完逻辑先跑一遍，全 PASS 再上机。这些脚本复刻了 C 代码的判断逻辑，用纯 Python 推演状态机。
 </p>
 
-<h3>接手第一天该做的事</h3>
-<ol>
-  <li>把本文第 3 节的接线表<b>对着实物核一遍</b>，特别是 CAN 拨码和步进限位</li>
-  <li>编译一次，确认 0 Error 0 Warning</li>
-  <li>不接电机，只上电看 LED 是否正常（RC 模式绿灯常亮）</li>
-  <li>跑一遍四个自检脚本</li>
-  <li>拆桨，试无刷；架空，试四轮转向；最后才落地</li>
-</ol>
-
-<div class="box ok">
-  <div class="h">判断有没有看懂</div>
-  <p style="margin-bottom:0">能回答这三个问题就算入门了：<br>
-  ① 某个轮子转反了改哪个宏？<br>
-  ② 为什么 K210 会收到一堆乱码？<br>
-  ③ 把 TB6600 拨码从 8 细分改成 16 细分，除了拨码还要改什么？</p>
-</div>
-
 <p style="margin-top:60px; padding-top:22px; border-top:1px solid var(--line); color:var(--tx3); font-size:13px">
-  本文与 <code>work_HZD/MY_底盘_V3.1</code> 的 <code>aa80cd8</code> 版本对应。
-  引脚和参数如与实物不符，<b>以代码为准</b>，然后回来改这份文档。
+  本文与 <code>work_HZD/MY_底盘_V3.1</code> 的 <code>2bbc86a</code> 版本对应。
+  引脚与参数以代码为准。变更后同步更新本文档。
 </p>
 
 </main>
