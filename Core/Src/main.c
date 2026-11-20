@@ -105,11 +105,12 @@
 /*
  * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
  * key2 按下边沿切换 RC <-> FOLLOW; 切换时清四轮 PID 积分防残留。
- * FOLLOW = 转向跟随 + 距离保持:
+ * FOLLOW = 只做朝向跟踪(2026-11-20 用户要求, 不再前进/后退):
  *   w  = K210 水平误差(err_deg) P 控制
- *   vx = K210 距离(dist) P 控制, 锁定距离见 k210_follow.h 的 K210_FOLLOW_DIST_CM
- *   vy = 0(横移不用)
- * 参数全在 k210_follow.h, 上机反了翻 K210_FOLLOW_DIR / K210_VX_DIR。
+ *   vx = 0, vy = 0
+ * 距离保持环保留代码但已关掉, 开关是 k210_follow.h 的 K210_FOLLOW_VX_ENABLE,
+ * 改 1 即可恢复追人(追 K210_FOLLOW_DIST_CM)。
+ * 转向参数在 k210_follow.h, 上机反了翻 K210_FOLLOW_DIR。
  */
 #define MODE_RC      0u
 #define MODE_FOLLOW  1u
@@ -317,8 +318,10 @@ int main(void)
 		 */
 		if (mode == MODE_FOLLOW)
 		{
-			/* 跟随模式: 转向(err_deg) + 前后距离保持(dist), 横移不用。
-			 * K210 离线/丢人时两个指令都返回 0, 原地停住不瞎走。 */
+			/* 跟随模式: 只做朝向跟踪(err_deg), 不前进也不后退, 横移不用。
+			 * vx 这行保留调用是为了把"要不要追人"集中在一个开关里
+			 * (K210_FOLLOW_VX_ENABLE=0 时它恒返回 0, 连斜坡状态都不跑)。
+			 * K210 离线/丢人时两路指令都返回 0, 原地停住不瞎走。 */
 			vx = k210_follow_vx_cmd();
 			vy = 0;
 			w  = k210_follow_wheel_cmd();

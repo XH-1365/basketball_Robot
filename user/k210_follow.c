@@ -317,6 +317,13 @@ int32_t k210_follow_wheel_cmd(void)
 
 int32_t k210_follow_vx_cmd(void)
 {
+#if (K210_FOLLOW_VX_ENABLE == 0)
+    /* 只做朝向跟踪：前后平移一律不输出。K210 仍然会上报 dist，这里直接忽略，
+     * 不影响转向环，也不用改 K210 那边的固件。
+     * 要恢复追人功能，把 k210_follow.h 的 K210_FOLLOW_VX_ENABLE 改回 1。 */
+    s_last_vx = 0;
+    return 0;
+#else
     float err_cm;
     float err_deg_abs;
     float slow;
@@ -396,6 +403,7 @@ int32_t k210_follow_vx_cmd(void)
 
     s_last_vx = target;
     return s_last_vx;
+#endif
 }
 
 void k210_follow_reset(void)
