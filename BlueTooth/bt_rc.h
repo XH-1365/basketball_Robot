@@ -29,6 +29,14 @@
 #define BT_FRAME_MAX          36           /* 单帧最大字节数(含校验), 协议最长15字节, 留余量 */
 #define BT_ONLINE_TIMEOUT_MS  200          /* 超过该时间无有效帧判定离线 */
 
+/* 方向键(上/下)防抖窗口(ms):
+ * 按住时偶发丢一帧方向(key1 变 0), 若立刻当成松手, 步进会按 STEP_ACCEL_RPM_S
+ * 每 10ms 掉 2RPM, 表现为电机走走停停。窗口内沿用上一方向继续走,
+ * 只有连续丢方向超过该时长才认为真的松手。
+ * 代价: 真松手后机构要多走这么多毫秒才开始减速(100RPM 下约 36 度)。
+ * 反向按下(上<->下)立即生效, 不受此窗口影响。 */
+#define BT_DIR_HOLD_MS        60
+
 #define BT_JOY_DEADBAND       8            /* 摇杆死区(0~127), 消除中位漂移 */
 
 /* 摇杆(-127~127) -> 底盘目标转速(rpm) 满量程, 自己调 */
@@ -115,6 +123,7 @@ uint8_t bt_rc_is_online(void);      /* 1=在线(超时时间内有有效帧) */
 #define BT_DPAD_DOWN          5
 
 uint8_t bt_rc_key_a(void);   /* A 键按住=1; 离线恒 0 */
-int8_t  bt_rc_dir(void);     /* 方向键上=+1 下=-1 其他=0; 离线恒 0 */
+int8_t   bt_rc_dir(void);             /* 方向键上=+1 下=-1 松手=0; 离线恒 0; 带 BT_DIR_HOLD_MS 防抖 */
+uint32_t bt_rc_dir_bridge_cnt(void);  /* 被防抖兜住的调用次数(调试用, 主循环约 10ms/次) */
 
 #endif /* BT_RC_H */
