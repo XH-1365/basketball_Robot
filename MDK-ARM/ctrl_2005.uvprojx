@@ -367,7 +367,7 @@
               <MiscControls />
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine />
-              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../user;../bsp/boards;../DR16_DT7;../PID;../BlueTooth;../Debug</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../user;../bsp/boards;../PID;../BlueTooth;../Debug</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -644,6 +644,11 @@
         <Group>
           <GroupName>RM2006</GroupName>
           <Files>
+            <File>
+              <FileName>robot_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\robot_config.h</FilePath>
+            </File>
             <File>
               <FileName>CAN_receive.c</FileName>
               <FileType>1</FileType>

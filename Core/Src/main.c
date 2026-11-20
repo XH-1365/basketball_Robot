@@ -29,6 +29,7 @@
 #include "k210_follow.h"
 #include "tim.h"
 #include "dshot.h"
+#include "robot_config.h"      /* ★ 全部可调参数集中在这个文件 ★ */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,90 +39,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define CHASSIS_MOTOR_NUM 4
-#define CHASSIS_3508_MAX_CURRENT 16384      /* M3508(C620) 官方限幅 ±16384 */
-#define CHASSIS_PID_MAX_IOUT 3000
-
 /*
- * ==================== 每电机独立速度环 PID ====================
- * 排列顺序与 chassis_solve.h 的电机索引一致:
- *   下标[0] = 一号 RB 右后 0x201
- *   下标[1] = 二号 LB 左后 0x202
- *   下标[2] = 三号 LF 左前 0x203
- *   下标[3] = 四号 RF 右前 0x204
- *
- * "硬" = 响应快、跟手、抗干扰强; 代价是容易抖/啸叫。
- *   - 想更硬: 加大 KP, KD 跟着加一点防超调
- *   - 抖了/啸叫了: 减 KP, 或加 KD
- *   - 到不了目标转速(有静差): 加 KI
+ * ★ 可调参数已全部移到 user/robot_config.h ★
+ * 本文件不再定义任何调参宏；要改 PID、刹车、油门、斜坡，去那个文件。
+ * 下面只保留 SWD 在线监控用的共享数据结构。
  */
-/*
- * 20261023 实测调参: 原参数 KP=1.6/KI=0.01 表现为提速肉 + 四轮静差消不掉跑偏。
- * KP 1.6->2.6: 满误差 P 输出从 20% 提到 32% 满电流, 提速明显;
- * KI 0.01->0.08: 100rpm 静差约 1.3s 补完(原来要 10s), 各轮静差自然消除, 不再靠硬拉增益;
- * KD 按原 KP:KD≈0.75 比例跟随。抖/啸叫先降 KP, 不到位加 KD。
- */
-/* 基准参数 (一号 RB / 三号 LF / 四号 RF) —— 行驶手感 */
-#define PID_BASE_KP   2.6f
-#define PID_BASE_KI   0.08f
-#define PID_BASE_KD   1.6f
-
-/* 二号电机 LB (左后, 0x202) —— 保持 1.5 倍相对硬度 */
-#define PID_2_KP      3.9f
-#define PID_2_KI      0.08f
-#define PID_2_KD      2.4f
-
-/*
- * ==================== 松杆刹车 ====================
- * 现象: 松开摇杆后车有惯性滑行。
- * 原因: 1) KP 偏小制动力不足  2) 匀速时累积的积分残留继续推车  3) KD 只在误差突变的第一拍起作用。
- * 对策: 摇杆归零且车未停稳时 -> 清积分 + KP/KD 乘以 CHASSIS_BRAKE_GAIN 强力拉回零速;
- *       四轮转速都低于 CHASSIS_BRAKE_EXIT_RPM 视为停稳, 恢复正常增益。
- */
-#define CHASSIS_BRAKE_GAIN      2.5f    /* 刹车时 KP/KD 放大倍数 (3.5->2.5: 已有斜坡限幅削掉阶跃, 不需要那么狠) */
-
-/*
- * ==================== 轮速目标斜坡限幅 (防打滑) ====================
- * 20261023 SWD 实测: 指令阶跃(0->2250rpm一拍)+大力矩 -> 轮子破抓地打滑,
- * 稳态轮速 +-100~200rpm 摆动, 超调最高 10.6%。
- * 对策: 每拍(10ms)目标最多变化 WHEEL_SLEW_RPM_PER_TICK, 0->2250 约 150ms。
- * 调法: 还打滑减小; 起步肉/不跟手加大。0 = 关闭斜坡(恢复阶跃)。
- */
-#define WHEEL_SLEW_RPM_PER_TICK  150
-
-/*
- * ==================== 7 路无刷 (LANRC DShot300, 同一块 C 板) ====================
- * 与 LANRC 工程同一套操作: A 键(key2 bit0)按住 = 油门使能,
- * 方向键上/下(key1)调速; 松开 A 立即停车, 速度档保留。
- * key2 的 B 键(bit1=BT_KEY2_START)仍是 RC/FOLLOW 模式切换, 与 A 键不冲突。
- */
-#define ESC_RUN_THROTTLE   1.0f   /* 满档油门上限 0.0~1.0 */
-#define ESC_SPEED_STEP     0.025f /* 每 ESC_SPEED_TICK_MS 调 2.5%, 0->100% 约 2s */
-#define ESC_SPEED_TICK_MS  50u
-#define ESC_SPEED_INIT     0.3f   /* 上电初始油门档位, 一按 A 即按此速度转(0.3=30%) */
-/* 油门斜坡: 每拍(10ms)变化 1%, 0->100% 约 1s, 升降同速(用户要求慢慢变) */
-#define ESC_RAMP_STEP      0.01f
-#define CHASSIS_BRAKE_EXIT_RPM  60      /* 四轮 |rpm| 都低于此值 = 停稳 */
-/*
- * ==================== 运行模式 (V2: 蓝牙遥控 / K210 视觉跟随) ====================
- * key2 按下边沿切换 RC <-> FOLLOW; 切换时清四轮 PID 积分防残留。
- * FOLLOW = 只做朝向跟踪(2026-11-20 用户要求, 不再前进/后退):
- *   w  = K210 水平误差(err_deg) P 控制
- *   vx = 0, vy = 0
- * 距离保持环保留代码但已关掉, 开关是 k210_follow.h 的 K210_FOLLOW_VX_ENABLE,
- * 改 1 即可恢复追人(追 K210_FOLLOW_DIST_CM)。
- * 转向参数在 k210_follow.h, 上机反了翻 K210_FOLLOW_DIR。
- */
-#define MODE_RC      0u
-#define MODE_FOLLOW  1u
-
-/*
- * ==================== SWD 在线监控 ====================
- * 双串口都被占用(USART1=蓝牙, USART6=K210)后, 调试信息改走 SWD:
- * 主循环每拍刷新 V2_dbg, PC 端用 _swd_mon_v2.py(pyocd) 不停机轮询读取。
- * magic 用来确认读到的地址/固件是配套版本。
- */
-#define V2_DBG_MAGIC 0x56324442u  /* 'V2DB' */
 
 typedef struct
 {
