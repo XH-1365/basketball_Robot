@@ -262,6 +262,10 @@ int main(void)
     }
   }
   debug_print("esc dshot300 armed\r\n");
+  /* 按 DSHOT_DIR_APPLY / DSHOT_DIR_REVERSED_MASK 下发转向命令。
+   * 默认 DSHOT_DIR_APPLY=0, 是空函数, 不影响任何行为。
+   * 此时电机仍是零油门, 满足"命令帧必须停车"的要求。 */
+  DShot_ApplyDirectionConfig();
   k210_follow_init();           /* K210 视觉跟随: USART6(PG9/PG14) 115200 8N1 */
   /* USER CODE END 2 */
 
