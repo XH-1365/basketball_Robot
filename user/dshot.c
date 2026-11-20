@@ -60,15 +60,8 @@ static uint16_t dshot_make_packet(uint16_t value)
     uint16_t packet;
     uint16_t crc;
 
-    /* bit0 是"遥测请求位"。
-     *   普通油门帧(0 或 48~2047) 置 0 —— 本驱动不收遥测, 免得电调白回一帧;
-     *   特殊命令帧(1~47)       必须置 1 —— 协议要求, 漏了电调会静默忽略命令。
-     * 2026-11-20: 之前这里写死 0, 导致任何命令字都发不出去。 */
+    /* bit0 是遥测请求位，本驱动恒置 0 */
     packet = (uint16_t)((value & DSHOT_VALUE_MAX) << 1U);
-    if ((value != 0U) && (value < DSHOT_VALUE_SPIN_MIN))
-    {
-        packet |= 1U;
-    }
 
     /* CRC-4：12bit 数据按半字节异或后取低 4 位。
        与 Betaflight / mokhwasomssi 的写法等价（他们是循环 3 次 csum ^= 数据） */
@@ -326,84 +319,6 @@ void DShot_SetAllThrottle(float throttle)
     }
 
     DShot_SetAllValue(value);
-}
-
-/* -------------------------------------------------------------------------
- * 用 DShot 特殊命令字改转向
- *
- * 为什么不能用普通油门值反转: 标准 DShot 的 48~2047 全部是"正转油门", 协议里
- * 没有"反向油门"这种东西。要反转只有两条路:
- *   a) 改电调内部的换相相序  <- 命令 20/21, 本函数走这条(掉电可保持)
- *   b) 开 3D 模式用反向油门区间 <- 另说, 低速性能差, 本驱动没实现
- *
- * 命令帧的三条硬性要求(见 dshot.h):
- *   零油门 / 遥测位置 1 / 连续 6 帧
- * 本函数每次都重新校验一遍, 不满足就返回 0, 不做"尽力而为"。
- * ------------------------------------------------------------------------- */
-static uint8_t dshot_send_cmd(uint8_t ch, uint16_t cmd)
-{
-    uint32_t t0;
-
-    if ((uint32_t)ch >= DSHOT_CH_NUM)
-    {
-        return 0U;
-    }
-    /* 只接受 1~47 的命令区间; 0 是停车, 48 起是油门, 都不是命令 */
-    if ((cmd == 0U) || (cmd >= DSHOT_VALUE_SPIN_MIN))
-    {
-        return 0U;
-    }
-    /* 协议要求该路处于停车态。这里直接拒绝, 不在转动时强改方向 */
-    if (s_value[ch] != DSHOT_VALUE_STOP)
-    {
-        return 0U;
-    }
-
-    s_value[ch] = cmd;
-    dshot_apply();
-
-    /* 环形 DMA 会一直重发这一帧, 用时长保证"至少 6 帧"。
-     * 一帧 166.67us, 4ms 约 24 帧。这里忙等, 会阻塞主循环, 只在初始化用。 */
-    t0 = HAL_GetTick();
-    while ((HAL_GetTick() - t0) < DSHOT_CMD_HOLD_MS)
-    {
-        /* 空转 */
-    }
-
-    s_value[ch] = DSHOT_VALUE_STOP;
-    dshot_apply();
-    return 1U;
-}
-
-uint8_t DShot_SetDirection(uint8_t ch, uint8_t reversed)
-{
-    uint8_t ok = dshot_send_cmd(ch, (reversed != 0U)
-                                       ? (uint16_t)DSHOT_CMD_SPIN_DIRECTION_REVERSED
-                                       : (uint16_t)DSHOT_CMD_SPIN_DIRECTION_NORMAL);
-
-#if (DSHOT_DIR_SAVE != 0U)
-    if (ok != 0U)
-    {
-        (void)dshot_send_cmd(ch, (uint16_t)DSHOT_CMD_SAVE_SETTINGS);
-    }
-#endif
-
-    return ok;
-}
-
-void DShot_ApplyDirectionConfig(void)
-{
-#if (DSHOT_DIR_APPLY != 0U)
-    uint8_t ch;
-
-    for (ch = 0U; ch < DSHOT_CH_NUM; ch++)
-    {
-        if ((DSHOT_DIR_REVERSED_MASK & (uint8_t)(1U << ch)) != 0U)
-        {
-            (void)DShot_SetDirection(ch, 1U);
-        }
-    }
-#endif
 }
 
 void DShot_Stop(void)

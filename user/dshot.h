@@ -114,38 +114,6 @@ extern "C" {
 /* 上电保持零油门的时间(ms)。电调要看到连续合法帧才解锁，1~3s 视固件而定 */
 #define DSHOT_ARM_MS            2000U
 
-/* ---- DShot 特殊命令(命令字占 1~47, 普通油门从 48 起) ----------------------
- * 协议对命令帧有三条硬性要求, 缺一条电调就不执行:
- *   1) 该路油门必须为 0(电机停转)
- *   2) 帧内"遥测请求位"必须置 1   <-- 最容易漏, 漏了就是静默失败
- *   3) 连续发送 6 帧以上
- * 本驱动在 dshot_send_cmd() 里按这三条实现, 调用者只要保证该路是停的。
- */
-#define DSHOT_CMD_SAVE_SETTINGS           12U  /* 保存设置到 EEPROM */
-#define DSHOT_CMD_SPIN_DIRECTION_NORMAL   20U  /* 转向: 正常 */
-#define DSHOT_CMD_SPIN_DIRECTION_REVERSED 21U  /* 转向: 反转 */
-
-/* 命令帧连续发送的保持时间(ms)。一帧 166.67us, 4ms 约 24 帧, 远超要求的 6 帧。
- * 注意: 本驱动是环形 DMA 连续发帧, 不是"发 6 次就停", 所以要用时长控制边界 */
-#define DSHOT_CMD_HOLD_MS                 4U
-
-/* ---- 上电自动下发转向(可选) ----------------------------------------------
- * 0 = 不动作, 方向完全交给 BLHeliSuite 的 Motor Direction(默认, 最安全)
- * 1 = 上电初始化后按 DSHOT_DIR_REVERSED_MASK 下发转向命令
- * 打开前请拆桨。
- */
-#define DSHOT_DIR_APPLY                   0
-
-/* 哪几路反转: bit0 = CH1(PC6)  bit1 = CH2(PI6)  bit2 = CH3(PI7)
- * 例: 只有 CH2 装反了 -> 0x02U */
-#define DSHOT_DIR_REVERSED_MASK           0x00U
-
-/* 下发转向后是否写 EEPROM(命令 12)
- * 0 = 只在本次上电生效, 下次上电恢复原方向(默认, 不磨损 flash)
- * 1 = 写入 EEPROM, 之后不必再下发(会消耗一次擦写寿命)
- */
-#define DSHOT_DIR_SAVE                    0U
-
 /* ============================ 通道枚举 ==================================== */
 typedef enum
 {
@@ -188,24 +156,6 @@ void DShot_Stop(void);
   * @brief  读回某一路当前设定值 0~2047；通道号非法返回 0。
   */
 uint16_t DShot_GetValue(uint8_t ch);
-
-/**
-  * @brief  用 DShot 命令字设置某一路的转向(命令 20/21)。
-  * @param  ch       通道号 0~2
-  * @param  reversed 0 = 正常, 1 = 反转
-  * @retval 1 = 已下发; 0 = 参数非法或该路不在停车态
-  * @note   会阻塞 DSHOT_CMD_HOLD_MS 毫秒(环形 DMA 需要这段时间才够 6 帧)。
-  *         该路必须先在停车态(value=0), 否则直接返回 0, 不会强改。
-  *         DSHOT_DIR_SAVE=0 时掉电恢复原方向, 每次上电都要重新下发。
-  *         必须在拆桨状态下调用。
-  */
-uint8_t DShot_SetDirection(uint8_t ch, uint8_t reversed);
-
-/**
-  * @brief  按 DSHOT_DIR_APPLY / DSHOT_DIR_REVERSED_MASK 下发转向配置。
-  * @note   DSHOT_DIR_APPLY=0 时是空函数。在电调解锁(DSHOT_ARM_MS)之后调用。
-  */
-void DShot_ApplyDirectionConfig(void);
 
 /**
   * @brief  读回最近一帧的 16bit 内容（12bit 数据 + 4bit CRC），调试用。
