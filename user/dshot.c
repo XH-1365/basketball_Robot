@@ -174,22 +174,48 @@ static void dshot_dma_config(DMA_HandleTypeDef *hdma, DMA_Stream_TypeDef *stream
 
 /**
   * @brief  把 s_value[] 的变化真正下发到硬件
-  * @note   直接操作寄存器而不用 HAL_DMA_Abort + HAL_DMA_Start，省掉 HAL 状态机。
+  * @note   直接操作寄存器而不用 HAL_DMA_Abort + HAL_DMA_Start：HAL_DMA_Init 之后
+  *         State 恒为 BUSY(第一次 Start 之后就再没被复位)，第二次 HAL_DMA_Start
+  *         会直接返回 HAL_BUSY 什么都不做。
   *         停止的这几微秒里输出会停在最后一个 CCR 上，最多丢一帧，CRC 会挡掉。
+  *
+  * !! 必须把 PAR / M0AR / NDTR 三者一起复位，不能只写 NDTR !!
+  *   HAL 的 DMA_SetConfig() 就是这么做的(见 stm32f4xx_hal_dma.c)。
+  *   只写 NDTR 时，M0AR 仍停在"上一轮被强行打断"的位置，DMA 会从缓冲中间开始搬。
+  *   每个 update 事件搬 4 个字 -> CCR1~CCR4，缓冲布局是 [槽][CH1,CH2,CH3,CH4]，
+  *   所以只要 M0AR 不是 4 字对齐(3/4 的概率)，通道映射就整体错位：
+  *     错 1 字 -> CH1/CH2 拿到相邻通道的数据(三路油门相同时数值一样, 看着正常),
+  *                CH3 恰恰拿到 CH4 那一格 -> 恒 0 -> 该路电调收不到任何帧, 直接停转;
+  *     错 2 字 -> CH2 恒 0;   错 3 字 -> CH1 恒 0。
+  *   错位量取决于打断那一刻 DMA 搬到第几个字，是随机的 -> 现象就是
+  *   "不定时某一路无信号 / 电机抽动"。这是 2026-11-20 报的
+  *   "无刷电机不定时慢速抖动"的首要嫌疑。
   */
 static void dshot_apply(void)
 {
+    DMA_Stream_TypeDef *s;
+
     if (s_ready == 0U)
     {
         return;
     }
 
     s_packet = dshot_make_packet(s_value[0]);
+    s = s_hdma_tim8_up.Instance;
 
+    /* 1) 停流: 硬件在当前 AHB 传输结束后才清 EN */
     __HAL_DMA_DISABLE(&s_hdma_tim8_up);
-    while ((s_hdma_tim8_up.Instance->CR & DMA_SxCR_EN) != 0U) { }
+    while ((s->CR & DMA_SxCR_EN) != 0U) { }
+
+    /* 2) 重填缓冲 */
     dshot_fill_buffer(s_buf_tim8, 0U, DSHOT_TIM8_CH_NUM);
-    __HAL_DMA_SET_COUNTER(&s_hdma_tim8_up, DSHOT_BUF_WORDS);
+
+    /* 3) 源地址 / 目的地址 / 剩余长度一起复位(等价 HAL 的 DMA_SetConfig) */
+    s->PAR  = (uint32_t)&TIM8->DMAR;
+    s->M0AR = (uint32_t)s_buf_tim8;
+    s->NDTR = (uint16_t)DSHOT_BUF_WORDS;
+
+    /* 4) 重开 */
     __HAL_DMA_ENABLE(&s_hdma_tim8_up);
 }
 
