@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>步兵底盘 · 接线与维护教程</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1d2229; --line:#2a313c;
+    --tx:#d9e0e8; --tx2:#9aa6b6; --tx3:#6d7887;
+    --blue:#4ea1ff; --cyan:#39d0d8; --green:#3ddc84;
+    --amber:#ffb454; --red:#ff6b6b; --purple:#b48ef7;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--tx);
+    font:15px/1.75 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- 布局 ---------- */
+  .wrap{display:flex; max-width:1500px; margin:0 auto;}
+  nav{
+    width:250px; flex:0 0 250px; position:sticky; top:0; align-self:flex-start;
+    height:100vh; overflow-y:auto; padding:26px 16px 40px;
+    border-right:1px solid var(--line); background:var(--panel);
+  }
+  nav .brand{
+    font-size:13px; letter-spacing:.14em; color:var(--tx3);
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  nav .ttl{font-size:17px; font-weight:600; color:var(--tx); margin-bottom:22px; line-height:1.4;}
+  nav a{
+    display:block; padding:7px 11px; margin:2px 0; border-radius:7px;
+    color:var(--tx2); text-decoration:none; font-size:14px;
+    border-left:2px solid transparent; transition:.15s;
+  }
+  nav a:hover{background:var(--panel2); color:var(--tx);}
+  nav a.on{background:rgba(78,161,255,.12); color:var(--blue); border-left-color:var(--blue);}
+  nav .sub{padding-left:24px; font-size:13px; color:var(--tx3);}
+
+  main{flex:1; min-width:0; padding:44px 52px 120px;}
+
+  /* ---------- 排版 ---------- */
+  h1{font-size:31px; font-weight:650; margin:0 0 10px; letter-spacing:-.01em;}
+  h2{
+    font-size:22px; font-weight:620; margin:60px 0 8px; padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  h2 .num{color:var(--tx3); font-weight:400; margin-right:10px; font-variant-numeric:tabular-nums;}
+  h3{font-size:16.5px; font-weight:600; margin:30px 0 10px; color:var(--tx);}
+  h4{font-size:14.5px; font-weight:600; margin:20px 0 8px; color:var(--cyan);}
+  p{margin:10px 0; color:var(--tx);}
+  .lead{font-size:16.5px; color:var(--tx2); line-height:1.8;}
+  ul,ol{margin:10px 0; padding-left:22px;}
+  li{margin:5px 0;}
+  code{
+    font-family:"Cascadia Mono",Consolas,"SF Mono",monospace;
+    font-size:13px; background:var(--panel2); color:var(--cyan);
+    padding:1.5px 6px; border-radius:4px; border:1px solid var(--line);
+    word-break:break-word;
+  }
+  b,strong{color:#fff; font-weight:620;}
+  a{color:var(--blue);}
+
+  /* ---------- 组件 ---------- */
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:11px;
+    padding:20px 24px; margin:18px 0;
+  }
+  .grid{display:grid; gap:14px;}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(440px,1fr));}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+
+  .kpi{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px;
+  }
+  .kpi .k{font-size:12px; color:var(--tx3); letter-spacing:.05em; margin-bottom:5px;}
+  .kpi .v{font-size:19px; font-weight:650; font-variant-numeric:tabular-nums;}
+  .kpi .v small{font-size:12px; color:var(--tx2); font-weight:400; margin-left:4px;}
+
+  table{
+    width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px;
+    background:var(--panel); border-radius:9px; overflow:hidden;
+  }
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--line);}
+  th{
+    background:var(--panel2); color:var(--tx2); font-weight:600;
+    font-size:12.5px; letter-spacing:.04em; white-space:nowrap;
+  }
+  td{color:var(--tx);}
+  tr:last-child td{border-bottom:none;}
+  td.pin{
+    font-family:"Cascadia Mono",Consolas,monospace; font-size:13px;
+    color:var(--cyan); white-space:nowrap;
+  }
+  td.c{text-align:center;}
+  tbody tr:hover{background:rgba(255,255,255,.02);}
+
+  .tag{
+    display:inline-block; padding:1px 8px; border-radius:20px;
+    font-size:11.5px; font-weight:600; letter-spacing:.03em;
+    border:1px solid;
+  }
+  .t-blue{color:var(--blue); border-color:rgba(78,161,255,.4); background:rgba(78,161,255,.1);}
+  .t-green{color:var(--green); border-color:rgba(61,220,132,.4); background:rgba(61,220,132,.1);}
+  .t-amber{color:var(--amber); border-color:rgba(255,180,84,.4); background:rgba(255,180,84,.1);}
+  .t-red{color:var(--red); border-color:rgba(255,107,107,.4); background:rgba(255,107,107,.1);}
+  .t-purple{color:var(--purple); border-color:rgba(180,142,247,.4); background:rgba(180,142,247,.1);}
+  .t-gray{color:var(--tx2); border-color:var(--line); background:var(--panel2);}
+
+  .box{
+    border-left:3px solid; border-radius:0 8px 8px 0;
+    padding:14px 20px; margin:18px 0; background:var(--panel);
+  }
+  .box .h{font-weight:650; margin-bottom:6px; font-size:14px; letter-spacing:.02em;}
+  .box p:first-of-type{margin-top:0;}
+  .box p:last-child{margin-bottom:0;}
+  .box.warn{border-left-color:var(--amber);}
+  .box.warn .h{color:var(--amber);}
+  .box.danger{border-left-color:var(--red);}
+  .box.danger .h{color:var(--red);}
+  .box.info{border-left-color:var(--blue);}
+  .box.info .h{color:var(--blue);}
+  .box.ok{border-left-color:var(--green);}
+  .box.ok .h{color:var(--green);}
+
+  pre{
+    background:#0b0e12; border:1px solid var(--line); border-radius:9px;
+    padding:14px 18px; overflow-x:auto; margin:14px 0;
+    font-family:"Cascadia Mono",Consolas,monospace; font-size:12.8px;
+    line-height:1.65; color:#c8d3e0;
+  }
+  pre .c{color:var(--tx3);}
+  pre .k{color:var(--purple);}
+  pre .s{color:var(--green);}
+  pre .n{color:var(--amber);}
+
+  .svgbox{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:18px; margin:20px 0; overflow-x:auto;
+  }
+  .svgbox svg{display:block; margin:0 auto; min-width:660px;}
+
+  .toc-note{font-size:12.5px; color:var(--tx3); margin-top:26px; padding-top:16px; border-top:1px solid var(--line);}
+
+  .flow{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:16px 0;}
+  .flow .step{
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 14px; font-size:13px;
+  }
+  .flow .arw{color:var(--tx3);}
+
+  /* 移动端 */
+  @media(max-width:900px){
+    nav{display:none;}
+    main{padding:26px 18px 80px;}
+    h1{font-size:24px;}
+    h2{font-size:19px;}
+    table{font-size:12.5px;}
+    th,td{padding:7px 9px;}
+  }
+  @media print{
+    nav{display:none;} main{padding:0;} body{background:#fff; color:#000;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav id="nav">
+  <div class="brand">RoboMaster · 步兵</div>
+  <div class="ttl">底盘接线与维护教程</div>
+  <a href="#s1">1 · 这是什么</a>
+  <a href="#s2">2 · 硬件拓扑</a>
+  <a href="#s3">3 · 接线映射（核心）</a>
+  <a href="#s3-1" class="sub">电源与共地</a>
+  <a href="#s3-2" class="sub">CAN 总线</a>
+  <a href="#s3-3" class="sub">串口</a>
+  <a href="#s3-4" class="sub">步进（俯仰）</a>
+  <a href="#s3-5" class="sub">无刷 DShot</a>
+  <a href="#s3-6" class="sub">LED 与限位</a>
+  <a href="#s4">4 · 上电会发生什么</a>
+  <a href="#s5">5 · 编译与烧录</a>
+  <a href="#s6">6 · 参数速查</a>
+  <a href="#s7">7 · 故障排查</a>
+  <a href="#s8">8 · 维护守则</a>
+  <div class="toc-note">
+    代码版本 <code>aa80cd8</code><br>
+    更新 2026-11-20
+  </div>
+</nav>
+
+<main>
+
+<h1>步兵底盘 · 接线与维护教程</h1>
+<p class="lead">
+  从「这块板子上每根线是干什么的」讲到「出问题怎么查」。
+  面向第一次接手这套车的人，不需要先读懂全部代码。
+</p>
+
+<div class="grid g3" style="margin-top:26px">
+  <div class="kpi"><div class="k">主控</div><div class="v">STM32F407IGH6<small>168 MHz</small></div></div>
+  <div class="kpi"><div class="k">开发板</div><div class="v">大疆 C 型板</div></div>
+  <div class="kpi"><div class="k">底盘</div><div class="v">全向轮 ×4</div></div>
+  <div class="kpi"><div class="k">执行器</div><div class="v">4+1+3<small>轮 / 步进 / 无刷</small></div></div>
+  <div class="kpi"><div class="k">工具链</div><div class="v">Keil MDK<small>ARMCC V5.06</small></div></div>
+  <div class="kpi"><div class="k">固件量</div><div class="v">20.8 KB<small>Code</small></div></div>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="s1"><span class="num">01</span>这是什么</h2>
+
+<p>
+  一台 RoboMaster 步兵机器人的<strong>底盘控制固件</strong>。跑在 C 型开发板上，管五件事：
+</p>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <h4 style="margin-top:0">四个全向轮</h4>
+    <p style="margin-bottom:0">通过 CAN 总线控制 4 个 M3508 电机，做全向平移 + 旋转。
+    摇杆输入 → 逆运动学解算 → 四轮目标转速 → PID → 电流指令。</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">一路步进（俯仰）</h4>
+    <p style="margin-bottom:0">TB6600 驱动器 + 两相步进，硬件 PWM 发脉冲。
+    方向键控制升降，下端有限位开关做零位保护。</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">三路无刷（DShot）</h4>
+    <p style="margin-bottom:0">BLHeli_S 电调，TIM8 三通道 + DMA 发 DShot300 数字油门。
+    A 键使能，LB/RB 调档。</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">两路输入源</h4>
+    <p style="margin-bottom:0">蓝牙遥控（塔克模块）和 K210 视觉跟随，二选一，
+    用 B 键切换模式。</p>
+  </div>
+</div>
+
+<h3>两种运行模式</h3>
+<table>
+  <thead><tr><th style="width:132px">模式</th><th>数据来源</th><th>底盘行为</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="tag t-blue">RC 遥控</span></td>
+      <td>USART1 · 蓝牙模块的摇杆值</td>
+      <td>摇杆直接映射 vx / vy / w，人在环，想怎么走怎么走</td>
+    </tr>
+    <tr>
+      <td><span class="tag t-purple">FOLLOW 跟随</span></td>
+      <td>USART6 · K210 报的目标偏角</td>
+      <td><strong>只做朝向跟踪</strong>：原地转向对准人，<b>不前进不后退</b></td>
+    </tr>
+  </tbody>
+</table>
+<p style="color:var(--tx2); font-size:14px">
+  跟随模式的距离保持功能已关闭（<code>K210_FOLLOW_VX_ENABLE = 0</code>），
+  改这一个宏就能恢复「追人」。
+</p>
+
+<div class="box info">
+  <div class="h">怎么切换模式</div>
+  <p>按蓝牙手柄的 <b>B 键</b>（<code>key2</code> 的 bit1）。按下瞬间切换一次，不是按住。
+  切换时会清四轮 PID 积分，防止残留导致窜车。</p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="s2"><span class="num">02</span>硬件拓扑</h2>
+
+<p>先看整体，后面再逐个讲线。所有外设都挂在 C 板上，C 板是唯一的「大脑」。</p>
+
+<div class="svgbox">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI,Microsoft YaHei,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#5a6577"/>
+    </marker>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#4ea1ff"/>
+    </marker>
+  </defs>
+
+  <!-- 中心板 -->
+  <rect x="345" y="215" width="210" height="130" rx="12" fill="#1d2229" stroke="#4ea1ff" stroke-width="2"/>
+  <text x="450" y="250" text-anchor="middle" fill="#4ea1ff" font-size="16" font-weight="700">STM32F407IGH6</text>
+  <text x="450" y="272" text-anchor="middle" fill="#9aa6b6" font-size="12">大疆 C 型开发板</text>
+  <text x="450" y="296" text-anchor="middle" fill="#6d7887" font-size="11">168 MHz · 固件 20.8 KB</text>
+  <text x="450" y="322" text-anchor="middle" fill="#3ddc84" font-size="11">看门狗 IWDG 常开</text>
+
+  <!-- 上：CAN1 四轮 -->
+  <path d="M450,215 L450,160 L318,160 L318,138" fill="none" stroke="#5a6577" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="462" y="152" fill="#9aa6b6" font-size="11">CAN1 · 1 Mbps · PD0/PD1</text>
+
+  <g font-size="10.5">
+    <rect x="262" y="58" width="112" height="76" rx="8" fill="#171b21" stroke="#2a313c"/>
+    <text x="318" y="80" text-anchor="middle" fill="#c8d3e0" font-weight="600">M3508 ×4</text>
+    <text x="318" y="98" text-anchor="middle" fill="#9aa6b6">0x201 拨码1 右后</text>
+    <text x="318" y="113" text-anchor="middle" fill="#9aa6b6">0x202 拨码2 左后</text>
+    <text x="318" y="128" text-anchor="middle" fill="#6d7887">0x203/0x204 左前/右前</text>
+  </g>
+
+  <!-- 左下：步进 -->
+  <path fill="none" d="M345,290 L200,290 L200,372" stroke="#5a6577" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="160" y="270" fill="#9aa6b6" font-size="11">TIM1</text>
+
+  <g>
+    <rect x="108" y="378" width="184" height="96" rx="8" fill="#171b21" stroke="#2a313c"/>
+    <text x="200" y="400" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600">TB6600 + 两相步进</text>
+    <text x="200" y="418" text-anchor="middle" fill="#39d0d8" font-size="10.5">PE9  → STEP</text>
+    <text x="200" y="433" text-anchor="middle" fill="#39d0d8" font-size="10.5">PE11 → DIR</text>
+    <text x="200" y="448" text-anchor="middle" fill="#39d0d8" font-size="10.5">PE13 ← 限位</text>
+    <text x="200" y="464" text-anchor="middle" fill="#6d7887" font-size="10">8 细分 = 1600 脉冲/圈</text>
+  </g>
+
+  <!-- 右下：无刷 -->
+  <path fill="none" d="M555,290 L700,290 L700,372" stroke="#5a6577" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="628" y="270" fill="#9aa6b6" font-size="11">TIM8 + DMA2</text>
+
+  <g>
+    <rect x="608" y="378" width="184" height="96" rx="8" fill="#171b21" stroke="#2a313c"/>
+    <text x="700" y="400" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600">BLHeli_S 电调 ×3</text>
+    <text x="700" y="418" text-anchor="middle" fill="#39d0d8" font-size="10.5">PC6 → CH1</text>
+    <text x="700" y="433" text-anchor="middle" fill="#39d0d8" font-size="10.5">PI6 → CH2</text>
+    <text x="700" y="448" text-anchor="middle" fill="#39d0d8" font-size="10.5">PI7 → CH3</text>
+    <text x="700" y="464" text-anchor="middle" fill="#6d7887" font-size="10">DShot300 · 数字油门</text>
+  </g>
+
+  <!-- 左上：蓝牙 -->
+  <path fill="none" d="M345,240 L150,240 L150,175" stroke="#5a6577" stroke-width="2" marker-end="url(#ar)"/>
+  <g>
+    <rect x="76" y="96" width="148" height="76" rx="8" fill="#171b21" stroke="#2a313c"/>
+    <text x="150" y="118" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600">塔克蓝牙模块</text>
+    <text x="150" y="136" text-anchor="middle" fill="#39d0d8" font-size="10.5">PA9 TX / PB7 RX</text>
+    <text x="150" y="151" text-anchor="middle" fill="#9aa6b6" font-size="10">USART1 · 115200</text>
+    <text x="150" y="165" text-anchor="middle" fill="#6d7887" font-size="10">手机 APP / 手柄</text>
+  </g>
+
+  <!-- 右上：K210 + 调试 -->
+  <path fill="none" d="M555,240 L750,240 L750,175" stroke="#4ea1ff" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+  <g>
+    <rect x="666" y="96" width="168" height="76" rx="8" fill="#171b21" stroke="#4ea1ff" stroke-width="1.4"/>
+    <text x="750" y="118" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600">K210 视觉</text>
+    <text x="750" y="136" text-anchor="middle" fill="#39d0d8" font-size="10.5">PG14 TX / PG9 RX</text>
+    <text x="750" y="151" text-anchor="middle" fill="#ffb454" font-size="10">USART6 · 与调试打印共用</text>
+    <text x="750" y="165" text-anchor="middle" fill="#6d7887" font-size="10">8 Hz · ASCII · XOR 校验</text>
+  </g>
+
+  <!-- LED -->
+  <g>
+    <rect x="345" y="392" width="210" height="60" rx="8" fill="#171b21" stroke="#2a313c"/>
+    <text x="450" y="414" text-anchor="middle" fill="#c8d3e0" font-size="11" font-weight="600">板载三色 LED</text>
+    <text x="450" y="432" text-anchor="middle" fill="#39d0d8" font-size="10.5">PH10 蓝 · PH11 绿 · PH12 红</text>
+    <text x="450" y="446" text-anchor="middle" fill="#6d7887" font-size="10">共阳 · 低电平点亮</text>
+  </g>
+  <path fill="none" d="M450,345 L450,392" stroke="#5a6577" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- 图例 -->
+  <g transform="translate(60,505)">
+    <line x1="0" y1="0" x2="26" y2="0" stroke="#5a6577" stroke-width="2"/>
+    <text x="34" y="4" fill="#6d7887" font-size="11">单向信号</text>
+    <line x1="130" y1="0" x2="156" y2="0" stroke="#4ea1ff" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="164" y="4" fill="#6d7887" font-size="11">双用途线路（注意冲突）</text>
+  </g>
+</svg>
+</div>
+
+<div class="box warn">
+  <div class="h">一眼要记住的一件事</div>
+  <p>右上角那条<span style="color:var(--blue)">蓝色虚线</span>——<b>USART6 被 K210 和调试打印同时占用</b>。
+  这是整套硬件里唯一「一线两用」的地方，也是最容易出怪问题的地方，第 3.3 节详细说。</p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="s3"><span class="num">03</span>接线映射（核心）</h2>
+
+<p class="lead">
+  这一节是全文最该背下来的部分。左边是「板上引脚的物理名字」，右边是「它接去哪」，
+  中间是「代码里谁在用」。
+</p>
+
+<h3 id="s3-1">3.1 电源与共地</h3>
+
+<div class="box danger">
+  <div class="h">先接共地，再接信号</div>
+  <p>所有外设（蓝牙模块、K210、USB-TTL、步进驱动器、电调）必须与 C 板<b>共地</b>。
+  不共地时信号电平没有参考，表现是「有时候能收有时收不到」「一碰线就乱跳」——
+  这类问题查代码永远查不出来。</p>
+</div>
+
+<table>
+  <thead><tr><th style="width:150px">项目</th><th style="width:180px">取值</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>C 板供电</td><td>底盘 24V（RM 标准）</td><td>经分电板进 C 板，板上有 DC-DC 出 5V / 3.3V</td></tr>
+    <tr><td>逻辑电平</td><td>3.3V</td><td>所有串口、DShot、步进信号都是 3.3V，<b>不要接 5V 信号</b></td></tr>
+    <tr><td>步进驱动器</td><td>独立 12~24V</td><td>TB6600 的 VCC/GND 单独供电，<b>只共地不共用电源</b></td></tr>
+    <tr><td>电调</td><td>电池直供</td><td>BLHeli_S 动力电从分电板取，信号线只走 DShot，不要给电调灌 5V BEC 反送</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s3-2">3.2 CAN 总线</h3>
+
+<p>两路 CAN，都是 <b>1 Mbps</b>（<code>Prescaler=3, BS1=9TQ, BS2=4TQ</code>，APB1 42 MHz ÷ 42 = 1 MHz）。</p>
+
+<table>
+  <thead>
+    <tr><th style="width:90px">总线</th><th style="width:130px">引脚</th><th style="width:80px">速率</th><th>挂什么</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><b>CAN1</b></td><td class="pin">PD0 / PD1</td><td>1 Mbps</td><td>四个 M3508 驱动轮（AF9 复用）</td></tr>
+    <tr><td><b>CAN2</b></td><td class="pin">PB5 / PB6</td><td>1 Mbps</td><td>当前固件未使用，预留给云台/拨盘（AF9 复用）</td></tr>
+  </tbody>
+</table>
+
+<h4>轮子与 CAN ID 的对应关系</h4>
+<p>这个表如果和实物对不上，车会往奇怪的方向跑。判断依据是<b>电机驱动器上的拨码开关</b>，不是线序。</p>
+
+<table>
+  <thead>
+    <tr><th>数组下标</th><th>CAN ID</th><th>驱动器拨码</th><th>轮位</th><th>车上位置</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="c">0</td><td class="pin">0x201</td><td class="c">1</td><td><b>RB</b> 右后</td><td>车尾右侧</td></tr>
+    <tr><td class="c">1</td><td class="pin">0x202</td><td class="c">2</td><td><b>LB</b> 左后</td><td>车尾左侧</td></tr>
+    <tr><td class="c">2</td><td class="pin">0x203</td><td class="c">3</td><td><b>LF</b> 左前</td><td>车头左侧</td></tr>
+    <tr><td class="c">3</td><td class="pin">0x204</td><td class="c">4</td><td><b>RF</b> 右前</td><td>车头右侧</td></tr>
+  </tbody>
+</table>
+
+<pre><span class="c">// user/chassis_solve.h —— 轮子方向修正</span>
+<span class="c">// 上机发现哪个轮子转反了，改这里，<b>不要动公式</b></span>
+<span class="k">#define</span> WHEEL_DIR_RB  (<span class="n">+1</span>)
+<span class="k">#define</span> WHEEL_DIR_LB  (<span class="n">+1</span>)
+<span class="k">#define</span> WHEEL_DIR_LF  (<span class="n">+1</span>)
+<span class="k">#define</span> WHEEL_DIR_RF  (<span class="n">+1</span>)</pre>
+
+<div class="box info">
+  <div class="h">为什么「不要改公式」</div>
+  <p>逆解算的是几何关系（四个轮轴指车体对角线，轮速 = 速度场在该方向的投影）。
+  某个轮子转反只有两种可能：电机装反了、或者 DIR 宏写错了。
+  改公式会把本来对的三个轮子一起搞乱。</p>
+</div>
+
+<h3 id="s3-3">3.3 串口（两路，都 115200 8N1）</h3>
+
+<table>
+  <thead>
+    <tr><th style="width:90px">外设</th><th style="width:130px">引脚</th><th style="width:120px">参数</th><th>接什么</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>USART1</b></td><td class="pin">PA9 (TX)<br>PB7 (RX)</td><td>115200 8N1</td>
+      <td>塔克 XTARK SBTCOM1 蓝牙模块（4-pin 口）</td>
+    </tr>
+    <tr>
+      <td><b>USART6</b></td><td class="pin">PG14 (TX)<br>PG9 (RX)</td><td>115200 8N1</td>
+      <td><b>K210 视觉 + 调试打印，共用同一条线</b></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box danger">
+  <div class="h">USART6 一线两用 —— 整套系统最容易踩的坑</div>
+  <p><code>debug_print()</code> 和 <code>k210_follow</code> 都往 <b>PG14</b> 上写。
+  也就是说：<b>K210 会收到底盘所有调试文字</b>（启动信息、蓝牙帧统计、模式切换提示）。</p>
+  <p>K210 那边的解析必须能跳过这些垃圾行——按前缀 <code>K210,</code> / <code>RM,</code> 识别，
+  不是一个合法的行就整个丢掉。如果 K210 的接收逻辑是「收到什么就按固定格式切」，
+  一连调试打印就会解析失败甚至死机。</p>
+  <p style="margin-bottom:0">反过来，PG9（K210 发 → C 板收）是干净的，调试打印不会干扰。</p>
+</div>
+
+<h4>K210 帧格式（底盘接收）</h4>
+<pre>K210,seq,state,id,err_deg,dist_m*hh<span class="c">\n</span></pre>
+<table>
+  <thead><tr><th style="width:110px">字段</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>seq</code></td><td>帧序号，底盘用它估丢帧率</td></tr>
+    <tr><td><code>state</code></td><td><code>L</code>=锁定人 · <code>S</code>=画面没人 · <code>X</code>=视觉不可用</td></tr>
+    <tr><td><code>id</code></td><td>跟踪目标 ID</td></tr>
+    <tr><td><code>err_deg</code></td><td>人相对画面中心的水平偏角，<b>正 = 人在右侧</b></td></tr>
+    <tr><td><code>dist_m</code></td><td>距离（米），<code>-1</code> = 未知。当前固件<b>不用这个值</b></td></tr>
+    <tr><td><code>*hh</code></td><td>XOR 校验</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--tx2); font-size:14px">
+  约 8 Hz 发送。底盘有 500 ms 看门狗，超时判定 K210 掉线 → 转向指令归零、原地停住。
+</p>
+
+<h4>底盘回传给 K210</h4>
+<pre>RM,<span class="c">&lt;mode&gt;</span>,<span class="c">&lt;state&gt;</span>,<span class="c">&lt;err_deg&gt;</span>,<span class="c">&lt;w&gt;</span><span class="c">\n</span>   <span class="c">// 200 ms 一次</span></pre>
+
+<h4>蓝牙帧格式（三种遥控源）</h4>
+<table>
+  <thead><tr><th style="width:70px">帧号</th><th style="width:120px">来源</th><th>结构</th></tr></thead>
+  <tbody>
+    <tr><td class="pin">0x20</td><td>手机 APP</td><td class="pin" style="font-size:12px">AA 55 0C 20 TY LX LY RX RY 键1 键2 SUM</td></tr>
+    <tr><td class="pin">0x90</td><td>微信小程序</td><td class="pin" style="font-size:12px">AA 55 09 90 01 摇X 摇Y 键1 SUM</td></tr>
+    <tr><td class="pin">0xA0</td><td>蓝牙手柄</td><td class="pin" style="font-size:12px">AA 55 0F A0 01 LX LY RX RY 键1 键2 键3 右扳机 左扳机 SUM</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <div class="h">按键解析有两套定义，别混用</div>
+  <p>用蓝牙手柄（0xA0）时：</p>
+  <ul style="margin-bottom:0">
+    <li><b><code>key1</code> 是方向枚举</b>，不是位掩码：<code>1</code>=上 <code>3</code>=右 <code>5</code>=下 <code>7</code>=左。
+      拿它当位掩码判断会永远判错。</li>
+    <li><b><code>key2</code> 才是位掩码</b>：bit0=A、bit6=LB、bit7=RB。</li>
+  </ul>
+</div>
+
+<h3 id="s3-4">3.4 步进（俯仰轴）</h3>
+
+<table>
+  <thead><tr><th style="width:110px">信号</th><th style="width:130px">引脚</th><th style="width:140px">配置</th><th>接驱动器</th></tr></thead>
+  <tbody>
+    <tr><td>STEP</td><td class="pin">PE9</td><td>TIM1_CH1 · PWM</td><td>TB6600 的 PUL+（PUL- 接 GND）</td></tr>
+    <tr><td>DIR</td><td class="pin">PE11</td><td>推挽输出</td><td>TB6600 的 DIR+（DIR- 接 GND）</td></tr>
+    <tr><td>限位</td><td class="pin">PE13</td><td>输入 · 上拉</td><td>限位开关一端接 PE13，另一端接 GND</td></tr>
+  </tbody>
+</table>
+
+<h4>限位开关怎么接、为什么低有效</h4>
+<p>PE13 内部上拉，开关<b>常开、对 GND</b>：没压住时读到高电平，压住时被拉到 GND 读到 0。
+所以 <code>STEP_LIMIT_ACTIVE_LEVEL = 0</code>。</p>
+<p>开关装在<b>行程下端（零位）</b>，对应 <code>STEP_LIMIT_AT_UP = 0</code>。行为：</p>
+<ul>
+  <li>压住 → 立刻停，并<b>锁死「继续下降」</b>这个方向</li>
+  <li><b>反向（上升）永远放行</b>，不会被限位卡住</li>
+  <li>离开限位并持续 200 ms 后解锁</li>
+  <li>压住时 <code>stepper_get_pos()</code> 清零 —— 这就是机械零位的定义方式</li>
+</ul>
+
+<div class="box danger">
+  <div class="h">改驱动器细分拨码必须同步改代码</div>
+  <p>TB6600 现在是 <b>8 细分</b>，所以 <code>STEP_STEPS_PER_REV = 200 × 8 = 1600</code>。</p>
+  <p>如果为了降噪把拨码改成 16 细分，<b>必须</b>同时把代码改成 <code>3200</code>；改 32 细分改 <code>6400</code>。
+  不改的后果：实际转速是你设定值的几分之一，位置也全错，而且<b>看起来像「电机没力」</b>，
+  很容易误判成硬件故障。</p>
+</div>
+
+<h4>当前运动参数</h4>
+<div class="grid g3">
+  <div class="kpi"><div class="k">最高转速</div><div class="v">100 <small>RPM</small></div></div>
+  <div class="kpi"><div class="k">步频峰值</div><div class="v">2667 <small>Hz</small></div></div>
+  <div class="kpi"><div class="k">转一圈</div><div class="v">0.6 <small>秒</small></div></div>
+  <div class="kpi"><div class="k">起转转速</div><div class="v">1.5 <small>RPM</small></div></div>
+  <div class="kpi"><div class="k">加速度</div><div class="v">200 <small>RPM/s</small></div></div>
+  <div class="kpi"><div class="k">控制周期</div><div class="v">10 <small>ms</small></div></div>
+</div>
+
+<p style="margin-top:16px">
+  <span class="tag t-amber">注意</span>
+  100 RPM 是用户明确要求的速度，代价是<b>定位精度差</b>：10 ms 一拍就过冲 6°，
+  松手后从 100 降到 0 要 0.5 秒、多走约 150°，叠加方向键防抖的 36°，总共约 <b>186°</b>。
+  精度不够时优先把这个数降到 20~30 RPM。
+</p>
+
+<h3 id="s3-5">3.5 无刷（DShot300）</h3>
+
+<table>
+  <thead><tr><th style="width:90px">通道</th><th style="width:110px">引脚</th><th style="width:130px">定时器</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>CH1</td><td class="pin">PC6</td><td>TIM8_CH1</td><td rowspan="3">
+      三路共用 <b>DMA2_Stream1 / Channel 7</b>，TIM8 每个 update 事件搬 4 个字到 CCR1~CCR4（CH4 未用）。
+      缓冲布局 <code>[槽][CH1,CH2,CH3,CH4]</code>，共 50 槽 × 4 = 200 字。
+    </td></tr>
+    <tr><td>CH2</td><td class="pin">PI6</td><td>TIM8_CH2</td></tr>
+    <tr><td>CH3</td><td class="pin">PI7</td><td>TIM8_CH3</td></tr>
+  </tbody>
+</table>
+
+<h4>DShot 帧是什么</h4>
+<pre><span class="c">// 16 bit 一帧，300 kbps</span>
+[ 11 bit 值 ][ 1 bit 遥测请求 ][ 4 bit CRC ]
+
+值 = <span class="n">0</span>         → 停车
+值 = <span class="n">1~47</span>      → 特殊命令（改方向、保存设置、蜂鸣…）
+值 = <span class="n">48~2047</span>   → 油门，<b>全部是正转，没有反向区间</b></pre>
+
+<div class="box info">
+  <div class="h">想改电机转向，用 BLHeliSuite，不要改代码</div>
+  <p>标准 DShot 没有「反向油门」。要反转只有两条路：改电调内部相序，或者开 3D 模式。</p>
+  <p style="margin-bottom:0">最省事的是：USB-TTL 接上电调 → BLHeliSuite 里
+  <code>Motor Direction</code> 改 <code>Reversed</code> → <code>Write Setup</code>。
+  <b>一次写入永久生效</b>，比在固件里发命令字可靠得多（代码里的那套已经回退了）。</p>
+</div>
+
+<h4>操作方式</h4>
+<table>
+  <thead><tr><th style="width:132px">按键</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td><b>A 键</b>（key2 bit0）</td><td>按住才出力，松开立即停。速度档位保留</td></tr>
+    <tr><td><b>RB</b>（key2 bit7）</td><td>加速，每 50 ms 加 2.5%</td></tr>
+    <tr><td><b>LB</b>（key2 bit6）</td><td>减速，每 50 ms 减 2.5%</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--tx2); font-size:14px">
+  上电后先保持零油门 2 秒（<code>DSHOT_ARM_MS = 2000</code>），等 BLHeli_S 完成解锁。
+  这期间必须持续发合法帧，否则电调不认。
+</p>
+
+<div class="box warn">
+  <div class="h">调无刷相关任何东西之前，先拆桨</div>
+  <p style="margin-bottom:0">包括：改 <code>ESC_*</code> 参数、连 BLHeliSuite 读参数、换电调、动信号线。</p>
+</div>
+
+<h3 id="s3-6">3.6 LED 与限位</h3>
+
+<table>
+  <thead><tr><th style="width:80px">颜色</th><th style="width:110px">引脚</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>蓝 B</td><td class="pin">PH10</td><td rowspan="3">板载三色 LED，<b>共阳、低电平点亮</b>（<code>LED_ACTIVE_LOW = 1</code>）</td></tr>
+    <tr><td>绿 G</td><td class="pin">PH11</td></tr>
+    <tr><td>红 R</td><td class="pin">PH12</td></tr>
+  </tbody>
+</table>
+
+<h4>用 LED 判断状态（没有串口也能看）</h4>
+<table>
+  <thead><tr><th style="width:130px">模式</th><th style="width:170px">现象</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="4"><b>RC</b><br>手动遥控</td><td>绿灯常亮</td><td>蓝牙在线，正常</td></tr>
+    <tr><td>绿灯 1 Hz 慢闪</td><td>蓝牙<b>离线</b> —— 遥控器没开或没连上</td></tr>
+    <tr><td>蓝灯常亮</td><td>曾经收到过有效帧</td></tr>
+    <tr><td>红灯 5 Hz 快闪</td><td><b>坏帧在增加</b> —— 波特率不对或干扰</td></tr>
+    <tr><td rowspan="3"><b>FOLLOW</b><br>视觉跟随</td><td>蓝灯常亮</td><td>已锁定目标（state = <code>L</code>）</td></tr>
+    <tr><td>红灯 1 Hz 慢闪</td><td>K210 在线，但画面里没人</td></tr>
+    <tr><td>红灯 5 Hz 快闪</td><td>K210 <b>离线</b> —— 线没接、没上电、或程序没跑</td></tr>
+  </tbody>
+</table>
+
+<!-- ================================================================= -->
+<h2 id="s4"><span class="num">04</span>上电会发生什么</h2>
+
+<p>知道这个顺序，出问题时能判断「卡在哪一步」。</p>
+
+<div class="flow">
+  <div class="step">1 · GPIO / CAN / 串口 / 定时器初始化</div><span class="arw">→</span>
+  <div class="step">2 · CAN 滤波器</div><span class="arw">→</span>
+  <div class="step">3 · 蓝牙 + 调试口</div><span class="arw">→</span>
+  <div class="step">4 · LED + 步进</div><span class="arw">→</span>
+  <div class="step">5 · DShot 起 DMA</div><span class="arw">→</span>
+  <div class="step" style="border-color:rgba(255,180,84,.5)">6 · 等 2 秒解锁电调</div><span class="arw">→</span>
+  <div class="step">7 · K210 串口</div><span class="arw">→</span>
+  <div class="step">8 · 主循环</div>
+</div>
+
+<pre><span class="c">// main.c 里的实际顺序（简化）</span>
+MX_GPIO_Init();
+MX_CAN1_Init();  MX_CAN2_Init();
+MX_USART1_UART_Init();  MX_USART6_UART_Init();
+MX_IWDG_Init();              <span class="c">// 看门狗，之后必须持续喂狗</span>
+MX_TIM1_Init();  MX_TIM8_Init();
+
+can_filter_init();
+bt_rc_init();                <span class="c">// 蓝牙，PA9/PB7</span>
+debug_port_init();           <span class="c">// 调试，PG14/PG9</span>
+led_ind_init();
+stepper_init();              <span class="c">// DIR + 限位 + PWM 通道启动</span>
+DShot_Init();                <span class="c">// 环形 DMA，上电即持续发零油门帧</span>
+
+<span class="c">// 等电调解锁：1~3 秒，期间持续发帧并喂狗</span>
+<span class="k">while</span> (HAL_GetTick() &lt; arm_until) { HAL_IWDG_Refresh(&amp;hiwdg); HAL_Delay(<span class="n">10</span>); }
+
+k210_follow_init();          <span class="c">// K210，USART6</span>
+<span class="k">while</span> (<span class="n">1</span>) { <span class="c">/* 10 ms 一拍的实时循环 */</span> }</pre>
+
+<h4>主循环每拍做的事</h4>
+<ol>
+  <li>读遥控/K210 数据，判断模式</li>
+  <li>全向轮逆解 → 四轮目标转速</li>
+  <li>四轮 PID → CAN 电流指令（发 0x200 帧）</li>
+  <li>步进方向 + 限位判断（10 ms 节拍）</li>
+  <li>无刷油门斜坡 + DShot 输出</li>
+  <li>LED 指示 + 刷新 SWD 监控块 + 喂狗</li>
+</ol>
+
+<div class="box warn">
+  <div class="h">看门狗是开着的</div>
+  <p style="margin-bottom:0">主循环任何一处阻塞超过 IWDG 超时时间，芯片会<b>自动复位</b>。
+  表现是「跑一会儿突然重启」「电机偶尔抽一下然后重新初始化」。
+  如果加了阻塞代码（比如 <code>HAL_Delay</code> 循环等待），记得在里面喂狗。</p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="s5"><span class="num">05</span>编译与烧录</h2>
+
+<h3>编译</h3>
+<pre><span class="c"># 在 MDK-ARM 目录下执行</span>
+<span class="k">cd</span> work_HZD/MY_底盘_V3.1/MDK-ARM
+D:/Keil_v5/UV4/UV4.exe -j0 -b ctrl_2005.uvprojx -o build.log
+<span class="k">cat</span> build.log</pre>
+<p>成功的标志：<code>- 0 Error(s), 0 Warning(s).</code></p>
+<p>产物在 <code>MDK-ARM/ctrl_2005/</code>：<code>ctrl_2005.axf</code> / <code>ctrl_2005.hex</code> /
+<code>ctrl_2005.build_log.htm</code>（体积统计在这里）。</p>
+
+<h3>烧录</h3>
+<pre><span class="c"># 把 -b 换成 -f</span>
+D:/Keil_v5/UV4/UV4.exe -j0 -f ctrl_2005.uvprojx -o flash.log</pre>
+
+<div class="box danger">
+  <div class="h">烧录前先确认 ST-Link 真的在</div>
+  <p style="margin-bottom:0">看设备管理器或串口列表里有没有探针。不在的话 <code>UV4 -f</code> 会<b>挂死</b>然后被系统杀掉，
+  看起来像「Keil 崩了」，实际是没找到探针。先插好再跑。</p>
+</div>
+
+<h3>在线看数据（不动 debug 串口）</h3>
+<pre><span class="c"># SWD 轮询，不占用 USART6，不影响 K210</span>
+python _swd_mon_v2.py --once</pre>
+<p>能读到的字段：模式、蓝牙状态、vx/vy/w、四轮目标与实际转速、K210 各项统计、
+无刷油门档位与输出、DShot 帧、步进位置与限位状态。</p>
+
+<!-- ================================================================= -->
+<h2 id="s6"><span class="num">06</span>参数速查</h2>
+
+<p>想改什么，直接跳到对应的文件。这些宏都集中在头文件顶部，改完重编译即可。</p>
+
+<table>
+  <thead><tr><th style="width:190px">想改</th><th style="width:230px">文件</th><th>宏</th></tr></thead>
+  <tbody>
+    <tr><td>俯仰速度上限</td><td class="pin">user/stepper.h</td><td><code>STEP_RPM_MAX</code></td></tr>
+    <tr><td>驱动细分对应脉冲数</td><td class="pin">user/stepper.h</td><td><code>STEP_STEPS_PER_REV</code></td></tr>
+    <tr><td>限位装在哪端</td><td class="pin">user/stepper.h</td><td><code>STEP_LIMIT_AT_UP</code></td></tr>
+    <tr><td>方向键防抖窗口</td><td class="pin">BlueTooth/bt_rc.h</td><td><code>BT_DIR_HOLD_MS</code></td></tr>
+    <tr><td>摇杆满量程转速</td><td class="pin">BlueTooth/bt_rc.h</td><td><code>BT_VX_MAX_RPM</code> 等</td></tr>
+    <tr><td>摇杆方向反了</td><td class="pin">BlueTooth/bt_rc.h</td><td><code>BT_VX_DIR</code> 等改 ±1</td></tr>
+    <tr><td>某轮转反</td><td class="pin">user/chassis_solve.h</td><td><code>WHEEL_DIR_xx</code></td></tr>
+    <tr><td>无刷油门上限</td><td class="pin">Core/Src/main.c</td><td><code>ESC_RUN_THROTTLE</code></td></tr>
+    <tr><td>无刷升降速率</td><td class="pin">Core/Src/main.c</td><td><code>ESC_RAMP_STEP</code></td></tr>
+    <tr><td>跟随转向增益</td><td class="pin">user/k210_follow.h</td><td><code>K210_FOLLOW_KP</code></td></tr>
+    <tr><td>跟随转向死区</td><td class="pin">user/k210_follow.h</td><td><code>K210_DEADBAND_DEG</code></td></tr>
+    <tr><td>跟随方向反了</td><td class="pin">user/k210_follow.h</td><td><code>K210_FOLLOW_DIR</code> 改 ±1</td></tr>
+    <tr><td>要不要追人</td><td class="pin">user/k210_follow.h</td><td><code>K210_FOLLOW_VX_ENABLE</code></td></tr>
+  </tbody>
+</table>
+
+<div class="box ok">
+  <div class="h">改参数的通用规矩</div>
+  <p style="margin-bottom:0">先<b>只改一个</b>，编译，上机试，记下现象。一次改三个，出问题你分不清是谁的锅。
+  改完把「为什么改、改成多少、效果如何」写进当天的日志。</p>
+</div>
+
+<!-- ================================================================= -->
+<h2 id="s7"><span class="num">07</span>故障排查</h2>
+
+<p class="lead">按现象查。顺序是刻意排的：<b>先查线，再查配置，最后才怀疑代码</b>。</p>
+
+<div class="box info">
+  <div class="h">这条经验值钱</div>
+  <p style="margin-bottom:0">「昨天能跑今天不能」——先想「今天动过什么线」，不要先想「代码哪错了」。
+  2026-11-03 那次步进完全不转，查了半天代码，最后是限位线断了（限位一直被判定压住，程序正确地禁止了下降）。</p>
+</div>
+
+<h3>车不动 / 某个轮子不动</h3>
+<table>
+  <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
+  <tbody>
+    <tr><td>四轮全不动</td><td>CAN1 的 H/L 有没有接反、120Ω 终端电阻在不在、遥控是不是 RC 模式且在线</td></tr>
+    <tr><td>某一个轮不动</td><td>那个电机的驱动器<b>拨码</b>是不是 1/2/3/4 对应位置；CAN 线是否串到位</td></tr>
+    <tr><td>能转但方向不对</td><td><code>WHEEL_DIR_xx</code> 宏；先确认不是电机装反</td></tr>
+    <tr><td>转起来发抖/异响</td><td>PID 参数、CAN 反馈是否正常（看 <code>_swd_mon_v2.py</code> 的 rpm 字段）</td></tr>
+  </tbody>
+</table>
+
+<h3>步进不转 / 只往一个方向走</h3>
+<table>
+  <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
+  <tbody>
+    <tr><td>完全不转</td><td><b>限位线</b>（PE13 断线 = 一直读高？不对，是读不到低。重点查开关是否被压住、线是否断）；
+      TB6600 的 ENA 是否使能；驱动器供电</td></tr>
+    <tr><td>只能升不能降</td><td>限位被判定压住 → 正常保护。检查开关是否卡住、<code>STEP_LIMIT_AT_UP</code> 是否写反</td></tr>
+    <tr><td>实际速度比设定慢很多</td><td><b>细分拨码和 <code>STEP_STEPS_PER_REV</code> 不匹配</b></td></tr>
+    <tr><td>啸叫</td><td>正常现象，随步频变化。降噪可以试 16/32 细分（记得同步改代码）</td></tr>
+  </tbody>
+</table>
+
+<h3>无刷异常</h3>
+<table>
+  <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
+  <tbody>
+    <tr><td>上电不响、不转</td><td>电调有没有动力电；DShot 信号线是否接在正确引脚</td></tr>
+    <tr><td>某一路不定时抖 / 停</td><td>历史上这个是 <b>DMA 指针错位</b>（已修，<code>214059b</code>）。如果复发，查 <code>dshot_apply()</code> 是否三个寄存器一起复位</td></tr>
+    <tr><td>听到重新初始化音（哔几声）</td><td>该路信号中断被判丢失 → 检查那一根线、焊点</td></tr>
+    <tr><td>转向反了</td><td>BLHeliSuite 改 <code>Motor Direction</code>，不要改代码</td></tr>
+  </tbody>
+</table>
+
+<h3>K210 跟随不工作</h3>
+<table>
+  <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
+  <tbody>
+    <tr><td>红灯 5 Hz 快闪</td><td>K210 没上电 / 没跑程序 / TX 线没接在 PG9 上</td></tr>
+    <tr><td>红灯 1 Hz 慢闪</td><td>通信正常，但 K210 报 <code>S</code> 或 <code>X</code> —— 画面里没人，或视觉算法没进入跟踪</td></tr>
+    <tr><td>锁定了但转向反</td><td><code>K210_FOLLOW_DIR</code> 改 <code>-1</code></td></tr>
+    <tr><td>原地左右抖</td><td><code>K210_DEADBAND_DEG</code> 加大，或 <code>K210_FOLLOW_KP</code> 减小</td></tr>
+    <tr><td>K210 收到一堆乱码</td><td><b>正常</b> —— 那是底盘的调试打印。K210 那边要能跳过非 <code>K210,</code> / <code>RM,</code> 开头的行</td></tr>
+  </tbody>
+</table>
+
+<h3>蓝牙遥控没反应</h3>
+<table>
+  <thead><tr><th style="width:180px">现象</th><th>先查</th></tr></thead>
+  <tbody>
+    <tr><td>绿灯慢闪</td><td>链路离线：模块没上电、手机/手柄没连上、TX/RX 接反</td></tr>
+    <tr><td>红灯快闪</td><td>收到数据但校验失败：波特率不是 115200，或接了别的设备</td></tr>
+    <tr><td>能收到但按键无效</td><td><b>key1/key2 用错</b>：key1 是方向枚举不是位掩码</td></tr>
+  </tbody>
+</table>
+
+<h3>程序跑一会儿自己重启</h3>
+<p>看门狗超时。找主循环里的阻塞点——最长见的是在循环里加了 <code>HAL_Delay</code> 或忙等，
+又忘了喂狗。</p>
+
+<!-- ================================================================= -->
+<h2 id="s8"><span class="num">08</span>维护守则</h2>
+
+<div class="box danger">
+  <div class="h">安全第一</div>
+  <ul style="margin-bottom:0">
+    <li><b>调无刷一律拆桨。</b>没有例外。</li>
+    <li><b>上车通电前手扶稳。</b>尤其是刚改完方向/增益，第一次上电可能猛冲。</li>
+    <li><b>不要带电插拔电机线。</b>CAN 和电调动力线都一样，会打火。</li>
+  </ul>
+</div>
+
+<h3>改代码的规矩</h3>
+<div class="box warn">
+  <div class="h">CubeMX 重新生成代码 —— 有前提</div>
+  <ul style="margin-bottom:0">
+    <li><code>MDK-ARM/ctrl_2005.uvoptx</code> <b>必须在且非空</b>。缺了会报找不着文件；
+      0 字节会直接崩，而且日志只说「Problem in the update / KO」，完全看不出原因。</li>
+    <li><code>.mxproject</code> 已经入库，<b>不要忽略它</b>。</li>
+    <li>USER CODE 3 那几个块必须包住 <code>while(1)</code> 的收尾 <code>}</code>，
+      否则 main() 会少一个括号，整个文件语法崩。</li>
+    <li>不要在 USER CODE 2 里手动调 <code>MX_TIM1_Init</code> / <code>MX_TIM8_Init</code> ——
+      生成代码已经调了，重复调等于重复初始化 PWM。</li>
+    <li>自己写的中断逻辑要塞进生成函数的 <code>USER CODE BEGIN xxx_IRQn 0</code> 槽位，
+      不能定义同名中断函数。</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <div class="h">git status 里那 100 多个 Drivers 改动是假的</div>
+  <p style="margin-bottom:0">生成代码会按 ioc 声明的固件包覆盖 <code>Drivers/</code>，
+  导致 <code>git status</code> 显示一堆 M。用 <code>git diff --name-only</code> 看，
+  真正有内容差异的通常是 0 个 —— 纯粹是 LF/CRLF 行尾噪音，<b>不要提交</b>。</p>
+</div>
+
+<h3>提交与留痕</h3>
+<ul>
+  <li>一轮改动 = 一次提交。提交信息写清：<b>改了什么 / 为什么改 / 验证到哪一步 / 遗留什么</b>。</li>
+  <li>「验证到哪一步」必须诚实。没上机就写没上机，不要写「已修复」。</li>
+  <li>改完在当天的日志里记一笔，让接手的人知道前因后果。</li>
+</ul>
+
+<h3>自检脚本（不接硬件也能跑）</h3>
+<table>
+  <thead><tr><th style="width:280px">脚本</th><th style="width:70px">项数</th><th>测什么</th></tr></thead>
+  <tbody>
+    <tr><td class="pin">output/stepper_selftest.py</td><td class="c">26</td><td>步进斜坡、限位逻辑</td></tr>
+    <tr><td class="pin">output/bt_dir_debounce_selftest.py</td><td class="c">27</td><td>方向键防抖窗口</td></tr>
+    <tr><td class="pin">output/dshot_dma_align_selftest.py</td><td class="c">29</td><td>DShot 帧编码、DMA 指针错位穷举</td></tr>
+    <tr><td class="pin">output/k210_turn_only_verify.py</td><td class="c">30</td><td>K210 只转向的静态结构校验</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--tx2); font-size:14px">
+  改完逻辑先跑一遍，全 PASS 再上机。这些脚本复刻了 C 代码的判断逻辑，用纯 Python 推演状态机。
+</p>
+
+<h3>接手第一天该做的事</h3>
+<ol>
+  <li>把本文第 3 节的接线表<b>对着实物核一遍</b>，特别是 CAN 拨码和步进限位</li>
+  <li>编译一次，确认 0 Error 0 Warning</li>
+  <li>不接电机，只上电看 LED 是否正常（RC 模式绿灯常亮）</li>
+  <li>跑一遍四个自检脚本</li>
+  <li>拆桨，试无刷；架空，试四轮转向；最后才落地</li>
+</ol>
+
+<div class="box ok">
+  <div class="h">判断有没有看懂</div>
+  <p style="margin-bottom:0">能回答这三个问题就算入门了：<br>
+  ① 某个轮子转反了改哪个宏？<br>
+  ② 为什么 K210 会收到一堆乱码？<br>
+  ③ 把 TB6600 拨码从 8 细分改成 16 细分，除了拨码还要改什么？</p>
+</div>
+
+<p style="margin-top:60px; padding-top:22px; border-top:1px solid var(--line); color:var(--tx3); font-size:13px">
+  本文与 <code>work_HZD/MY_底盘_V3.1</code> 的 <code>aa80cd8</code> 版本对应。
+  引脚和参数如与实物不符，<b>以代码为准</b>，然后回来改这份文档。
+</p>
+
+</main>
+</div>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav a'));
+  var heads = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function upd(){
+    var y = window.scrollY + 120, idx = 0;
+    for (var i = 0; i < heads.length; i++){
+      if (heads[i] && heads[i].offsetTop <= y) idx = i;
+    }
+    links.forEach(function(a, i){ a.classList.toggle('on', i === idx); });
+  }
+  window.addEventListener('scroll', upd, {passive:true});
+  upd();
+})();
+</script>
+</body>
+</html>
