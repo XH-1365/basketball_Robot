@@ -55,7 +55,7 @@ extern "C" {
 /* 看门狗(ms): 超过此时长没收到任何合法帧 -> 判 K210 掉线, 输出归零 */
 #define K210_FOLLOW_WATCHDOG_MS 500u
 
-/* 状态回传周期(ms): 每次向 K210 发一行 RM,... 状态 */
+/* 状态回传周期(ms): 每次向 K210 发一行 BOT,... 状态 */
 #define K210_REPORT_MS          200u
 
 /* ======================= 距离保持（FOLLOW 前后平移） ======================= */
@@ -168,7 +168,7 @@ void k210_follow_set_target_dist_cm(int16_t cm);
 int16_t k210_follow_get_target_dist_cm(void);
 
 /**
-  * @brief  向 K210 回传一行状态: RM,<mode>,<state>,<err_deg>,<w>\n
+  * @brief  向 K210 回传一行状态: BOT,<mode>,<state>,<err_deg>,<w>\n
   *         内部自带 200ms 节流, 主循环每拍调用即可。
   * @param  follow_mode 1 = 底盘当前处于跟随模式
   */

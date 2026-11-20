@@ -1,6 +1,6 @@
-# basketball_Robot · 步兵底盘固件
+# basketball_Robot · 篮球机器人底盘固件
 
-RoboMaster 步兵机器人嵌入式底盘控制固件，运行于大疆 C 型开发板（`STM32F407IGH6`，168 MHz），Keil MDK（ARMCC V5.06）编译。
+篮球机器人嵌入式底盘控制固件，运行于大疆 C 型开发板（`STM32F407IGH6`，168 MHz），Keil MDK（ARMCC V5.06）编译。
 
 驱动 4 路 M3508 全向底盘、1 路俯仰步进、3 路无刷，支持蓝牙手柄遥控与 K210 视觉跟随两种模式。
 

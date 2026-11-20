@@ -28,6 +28,9 @@
 
 #define K210_PREFIX         "K210,"
 #define K210_PREFIX_LEN     5U
+
+/* 下行状态行前缀（底盘 -> K210）。K210 侧若按前缀过滤这行，要同步改成 "BOT," */
+#define K210_STATUS_PREFIX  "BOT,"
 #define K210_LINE_MAX       48U     /* 协议规定 <40 字节, 留余量 */
 
 /* ============================ 内部变量 ==================================== */
@@ -437,9 +440,9 @@ void k210_follow_report(uint8_t follow_mode)
     }
     s_report_tick = HAL_GetTick();
 
-    /* RM,<mode>,<state>,E=<err>,W=<w>,D=<dist_cm>,T=<目标cm>,V=<vx>,F=<frames>
+    /* BOT,<mode>,<state>,E=<err>,W=<w>,D=<dist_cm>,T=<目标cm>,V=<vx>,F=<frames>
      * —— 格式不约定, K210 只做 [CHAS] 回显; D/T/V 是距离保持的现场值 */
-    len = snprintf(buf, sizeof(buf), "RM,%s,%c,E=%d.%d,W=%ld,D=%d,T=%d,V=%ld,F=%lu\n",
+    len = snprintf(buf, sizeof(buf), K210_STATUS_PREFIX "%s,%c,E=%d.%d,W=%ld,D=%d,T=%d,V=%ld,F=%lu\n",
                    (follow_mode != 0U) ? "FLW" : "RC",
                    s_k210.state,
                    err_i / 10, err_abs % 10,
