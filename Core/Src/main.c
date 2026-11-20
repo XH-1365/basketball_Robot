@@ -150,6 +150,7 @@ typedef struct
 	uint32_t esc_key2;          /* 按键2 原始字节 (排查自转) */
 	int32_t  stepper_pos;       /* 步进相对零位步数(升+/降-/碰限位清零) */
 	uint32_t stepper_lim;       /* 步进限位压住 0/1 */
+	uint32_t esc_dir_rev;       /* Y 键切换的无刷方向 0=正转 1=反转 */
 } v2_dbg_t;
 
 /* USER CODE END PD */
@@ -426,6 +427,7 @@ int main(void)
 			static float esc_out = -1.0f;      /* 实际输出(斜坡后的值) */
 			static float esc_write = -1.0f;    /* 上次下发给电调的值 */
 			static uint32_t esc_speed_tick = 0;
+			static uint8_t esc_dir_rev = 0;    /* Y 键切换: 0=正转 1=反转, 掉电不保留 */
 			float out;
 			uint8_t a_hold = bt_rc_key_a();
 			int8_t esc_key = 0;
@@ -486,11 +488,25 @@ int main(void)
 				DShot_SetAllThrottle(esc_out);
 			}
 
+			/* ---- Y 键: 三路无刷正反转切换(toggle, 不写 EEPROM) ----------------
+			 * DShot 命令帧要求该路油门为 0, 三路共用同一油门, 所以必须等斜坡降到 0。
+			 * 电机还在转就直接忽略这次按键, 不做强制刹车 —— 突然停机可能炸机构。
+			 * 松 A 键后油门约 1s 才降到 0, 等降到 0 再按 Y。 */
+			if (bt_rc_key_y_edge() != 0u)
+			{
+				if (esc_out <= 0.0f)
+				{
+					esc_dir_rev = (uint8_t)(esc_dir_rev ^ 1u);
+					(void)DShot_SetDirectionAll(esc_dir_rev);
+				}
+			}
+
 			V2_dbg.esc_speed_x100 = (int32_t)(esc_speed * 100.0f + 0.5f);   /* 当前油门档位 */
 			V2_dbg.esc_out_x100 = (int32_t)(esc_out * 100.0f + 0.5f);
 			V2_dbg.esc_pkt = DShot_GetPacket();
 			V2_dbg.esc_a_hold = a_hold;
 			V2_dbg.esc_key2 = bt->key2;
+			V2_dbg.esc_dir_rev = esc_dir_rev;
 			V2_dbg.stepper_pos = stepper_get_pos();
 			V2_dbg.stepper_lim = stepper_limit_active();
 		}

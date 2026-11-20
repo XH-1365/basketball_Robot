@@ -208,6 +208,16 @@ uint8_t DShot_SetDirection(uint8_t ch, uint8_t reversed);
 void DShot_ApplyDirectionConfig(void);
 
 /**
+  * @brief  三路一起设转向(命令 20/21), 用于按键在线切换。
+  * @param  reversed 0 = 正转, 1 = 反转
+  * @retval 1 = 已下发; 0 = 未就绪或三路中有任一路不在停车态
+  * @note   阻塞 DSHOT_CMD_HOLD_MS(4ms), 一次搞定三路 —— 不是 3x4ms。
+  *         不写 EEPROM(掉电恢复原方向), 需要永久保存请开 DSHOT_DIR_SAVE。
+  *         必须在拆桨状态下调试。
+  */
+uint8_t DShot_SetDirectionAll(uint8_t reversed);
+
+/**
   * @brief  读回最近一帧的 16bit 内容（12bit 数据 + 4bit CRC），调试用。
   *         例：value=0 -> 0x0000；value=100 -> 0x0C84
   */

@@ -38,6 +38,10 @@ static uint16_t frame_sum;            /* 校验和累加 */
 static int8_t   dir_last;             /* 上一次有效方向 +1/-1/0 */
 static uint32_t dir_hold_tick;        /* 最后一次看到该方向的时刻 */
 static uint32_t dir_bridge_cnt;       /* 被防抖桥接的调用次数(调试用) */
+static uint8_t  key_y_prev;           /* Y 键上一拍状态(边沿检测) */
+static uint8_t  key_y_fired;          /* 是否已经触发过(时间戳不能兼作哨兵) */
+static uint8_t  key_y_block;          /* 1 = 离线过, 重连后必须先看到松开 */
+static uint32_t key_y_tick;           /* 上次 Y 键触发的时刻(去抖) */
 
 static int8_t bt_sign8(uint8_t v)
 {
@@ -197,6 +201,10 @@ void bt_rc_init(void)
     dir_last       = 0;
     dir_hold_tick  = 0;
     dir_bridge_cnt = 0;
+    key_y_prev     = 0;
+    key_y_fired    = 0;
+    key_y_block    = 0;
+    key_y_tick     = 0;
 
     HAL_UART_Receive_IT(bt_huart, &rx_byte, 1);
 }
@@ -333,4 +341,54 @@ int8_t bt_rc_dir(void)
 uint32_t bt_rc_dir_bridge_cnt(void)
 {
     return dir_bridge_cnt;
+}
+
+/* Y 键: 只在"按下那一瞬间"返回 1, 按住不放不会重复触发。
+ * 主循环约 10ms 一轮而帧率可能 20ms/帧, 同一帧会被读两次, 靠 prev 自动去重。
+ * 另加 BT_KEY_Y_MIN_GAP_MS 挡机械抖动。离线时清状态, 防止重连瞬间误触发。 */
+uint8_t bt_rc_key_y_edge(void)
+{
+    uint8_t  now;
+    uint32_t tick;
+
+    if (!bt_rc_is_online())
+    {
+        key_y_prev  = 0;
+        key_y_block = 1;
+        return 0;
+    }
+
+    now = ((bt_rc.key2 & BT_KEY2_Y) != 0u) ? 1u : 0u;
+
+    /* 断连前 Y 是按住的话, 重连后的第一帧看上去就是"刚按下"。
+     * 这里强制先等到一次松开, 避免白送一次切换。 */
+    if (key_y_block != 0u)
+    {
+        if (now == 0u)
+        {
+            key_y_block = 0;
+        }
+        key_y_prev = now;
+        return 0;
+    }
+
+    if ((now == 0u) || (key_y_prev != 0u))
+    {
+        key_y_prev = now;
+        return 0;
+    }
+
+    /* 防机械抖动连发。用 key_y_fired 而不是 key_y_tick != 0 判断"是否第一次",
+     * 因为 HAL_GetTick() 开机早期可能返回 0, 拿时间戳兼作哨兵会失效。 */
+    tick = HAL_GetTick();
+    if ((key_y_fired != 0u) && ((tick - key_y_tick) < BT_KEY_Y_MIN_GAP_MS))
+    {
+        key_y_prev = now;
+        return 0;
+    }
+
+    key_y_prev  = now;
+    key_y_tick  = tick;
+    key_y_fired = 1;
+    return 1;
 }
